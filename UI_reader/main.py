@@ -416,11 +416,24 @@ class ReaderApp:
 			self.show_menu()
 			print("Home")
 
+def toggle_fullscreen(event=None):
+    # Toggle the current fullscreen state
+    is_fullscreen = root.attributes('-fullscreen')
+    root.attributes('-fullscreen', not is_fullscreen)
+
+def end_fullscreen(event=None):
+    # Explicitly exit fullscreen
+    root.attributes('-fullscreen', False)
+    
 if __name__ == "__main__":
 	# analyze_all_books()
 
 	try:
 		root = tk.Tk()
+		root.geometry("240x240")
+		root.attributes('-fullscreen', True)
+		root.bind("<Escape>", end_fullscreen)
+		root.bind("<F11>", toggle_fullscreen)
 	except tk.TclError as error:
 		print("Tkinter could not start. If you're on Linux without a desktop, check DISPLAY/X11 setup.")
 		raise SystemExit(1) from error
