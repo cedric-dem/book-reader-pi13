@@ -648,15 +648,16 @@ class GUI():
     def create_options_menu(self):
         # Sizes are percentages of the whole screen: no padding around this menu
         self.screen_frame.pack_configure(padx=0, pady=0)
-        # Title and one entry per theme: 90% of the width, 15% of the height, 2.5% blank space above and below
-        widgets = [self.make_title("Theme", pack=False)]
-        for name in THEMES:
-            # [x] marks the theme in use
-            mark = "[x]" if name == self.theme_name else "[ ]"
-            # default argument so each entry keeps its own theme (not the last one of the loop)
-            widgets.append(self.make_menu_item(f"{mark} {name.capitalize()}",
-                                               lambda name=name: self.set_theme(name), pack=False))
+        # Title and one entry per option: 90% of the width, 15% of the height, 2.5% blank space above and below
+        widgets = [self.make_title("Options", pack=False)]
+        # A single theme entry: each validation switches to the next theme (back to the first after the last)
+        widgets.append(self.make_menu_item(f"Theme : {self.theme_name.capitalize()}",
+                                           self.next_theme, pack=False))
         self.place_in_rows(widgets)
+
+    def next_theme(self):
+        names = list(THEMES)
+        self.set_theme(names[(names.index(self.theme_name) + 1) % len(names)])
 
     def set_theme(self, name):
         self.theme_name = name
