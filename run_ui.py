@@ -71,6 +71,14 @@ THEMES = {
         "HIGHLIGHT_COLOR": "#F7C6D9",
         "HIGHLIGHT_TEXT_COLOR": "#4A3B5C",
     },
+    "sepia": {  # warm aged-paper tones with dark brown ink, easy on the eyes for long reading
+        "BACKGROUND_COLOR": "#F4ECD8",
+        "BUTTON_COLOR": "#E6D7B8",
+        "BUTTON_ACTIVE_COLOR": "#D8C49C",
+        "TEXT_COLOR": "#5B4636",
+        "HIGHLIGHT_COLOR": "#8B5E3C",
+        "HIGHLIGHT_TEXT_COLOR": "#F4ECD8",
+    },
 }
 
 # Every text shown on screen, one set per language (chosen in the options menu, in this order).
