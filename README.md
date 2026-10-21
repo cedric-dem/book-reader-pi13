@@ -15,7 +15,7 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Adjustable speed in 10% steps, pause/play, jump ±10 words, previous/next chapter.
 - Progress saved per book (chapter and word) in `book_progression.pkl`.
 - Menus driven only by the physical buttons: main menu, books list (scrolling), options.
-- Dark and light themes, the choice is remembered in `settings.pkl` (dark on first launch).
+- Three themes: dark, light and matrix (green text on black), chosen in **Options** and remembered in `settings.pkl` (dark on first launch).
 - "Exit to Debian" and "Shutdown Pi" from the main menu.
 - Runs on Windows for development, with the keyboard standing in for the GPIO buttons.
 
@@ -85,7 +85,7 @@ All settings are in the `CONFIGURATION` dictionary at the top of `run_ui.py`:
 | `BOOKS_VISIBLE_AT_ONCE`  | `5`          | Number of books shown at once in the list                 |
 | `BOOK_NAME_MAX_LENGTH`   | `24`         | Longer titles are cut with `...`                          |
 | `BOOK_PROGRESSION_FILE`  | `./book_progression.pkl` | Saved progress of every book                  |
-| `SETTINGS_FILE`          | `./settings.pkl`         | Saved user settings (dark mode)               |
+| `SETTINGS_FILE`          | `./settings.pkl`         | Saved user settings (theme)                   |
 | `GENERAL_DELAY`          | `0.15`       | Base delay (seconds) at 100% for a reference-size word    |
 | `STEP_PERCENTAGE`        | `10`         | Speed change per button press                             |
 | `WORD_SIZE_REFERENCE`    | `5`          | Word length that gets exactly the base delay              |
@@ -102,7 +102,7 @@ Display time of a word:
 delay = OFFSET_DELAY_MS + punctuation × (len(word) / WORD_SIZE_REFERENCE) × GENERAL_DELAY × (speed% / 100)
 ```
 
-Colors for both themes are in the `THEMES` dictionary.
+Colors for the three themes are in the `THEMES` dictionary. Each entry added there also appears in the options menu.
 
 ## Raspberry Pi notes
 

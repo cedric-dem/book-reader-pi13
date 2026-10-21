@@ -21,7 +21,7 @@ CONFIGURATION = {
     "BOOKS_VISIBLE_AT_ONCE": 4,
     # Reading progression of every book (page and word index), saved next to this script
     "BOOK_PROGRESSION_FILE": os.path.join(os.path.dirname(os.path.abspath(__file__)), "book_progression.pkl"),
-    # User settings changed from the options menu (e.g. dark mode), saved next to this script
+    # User settings changed from the options menu (e.g. the theme), saved next to this script
     "SETTINGS_FILE": os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.pkl"),
 
     # --- Word by word reading (same values as UI_reader/config.py) ---
@@ -37,7 +37,7 @@ CONFIGURATION = {
     "INFO_FONT_SIZE": 20,
 }
 
-# Colors used by every screen, one set per mode
+# Colors used by every screen, one set per theme (chosen in the options menu, in this order)
 THEMES = {
     "dark": {
         "BACKGROUND_COLOR": "#0F0F0F",
@@ -54,6 +54,14 @@ THEMES = {
         "TEXT_COLOR": "#111111",
         "HIGHLIGHT_COLOR": "#111111",
         "HIGHLIGHT_TEXT_COLOR": "#F2F2F2",
+    },
+    "matrix": {  # green text on a black background
+        "BACKGROUND_COLOR": "#000000",
+        "BUTTON_COLOR": "#0A1F0A",
+        "BUTTON_ACTIVE_COLOR": "#143D14",
+        "TEXT_COLOR": "#00FF41",
+        "HIGHLIGHT_COLOR": "#00FF41",
+        "HIGHLIGHT_TEXT_COLOR": "#000000",
     },
 }
 
@@ -122,7 +130,7 @@ def save_current_state(current_book, current_page_index, current_word_index):
 
 # Settings used on first launch, when no settings file exists yet
 DEFAULT_SETTINGS = {
-    "dark_mode": True,
+    "theme": "dark",  # one of the THEMES names
 }
 
 
@@ -132,6 +140,14 @@ def load_settings():
     if os.path.exists(settings_file):
         with open(settings_file, "rb") as f:
             settings.update(pickle.load(f))
+    # Settings saved by older versions only had "dark_mode" (True/False): turn it into a theme
+    if "dark_mode" in settings:
+        dark_mode = settings.pop("dark_mode")
+        if settings["theme"] == DEFAULT_SETTINGS["theme"]:
+            settings["theme"] = "dark" if dark_mode else "light"
+    # Unknown theme name (e.g. removed from THEMES): back to the default one
+    if settings["theme"] not in THEMES:
+        settings["theme"] = DEFAULT_SETTINGS["theme"]
     return settings
 
 
@@ -148,7 +164,7 @@ class GUI():
         self.root.attributes("-fullscreen", CONFIGURATION["FULLSCREEN_ON_STARTUP"])
 
         self.settings = load_settings()
-        self.dark_mode = self.settings["dark_mode"]
+        self.theme_name = self.settings["theme"]
         self.screen_frame = None
         self.current_screen = None  # function that builds the screen currently displayed
 
@@ -205,7 +221,7 @@ class GUI():
     # --- Theme / screen helpers ---
     @property
     def theme(self):
-        return THEMES["dark" if self.dark_mode else "light"]
+        return THEMES[self.theme_name]
 
     def show_screen(self, build_function, keep_selection=False):
         # Destroy the current screen and build a new one with the current theme
@@ -632,18 +648,20 @@ class GUI():
     def create_options_menu(self):
         # Sizes are percentages of the whole screen: no padding around this menu
         self.screen_frame.pack_configure(padx=0, pady=0)
-        # Title and entry: 90% of the width, 15% of the height, 2.5% blank space above and below
-        widgets = [
-            self.make_title("Options", pack=False),
-            self.make_menu_item(f"Dark mode: {'ON' if self.dark_mode else 'OFF'}",
-                                self.toggle_dark_mode, pack=False),
-        ]
+        # Title and one entry per theme: 90% of the width, 15% of the height, 2.5% blank space above and below
+        widgets = [self.make_title("Theme", pack=False)]
+        for name in THEMES:
+            # [x] marks the theme in use
+            mark = "[x]" if name == self.theme_name else "[ ]"
+            # default argument so each entry keeps its own theme (not the last one of the loop)
+            widgets.append(self.make_menu_item(f"{mark} {name.capitalize()}",
+                                               lambda name=name: self.set_theme(name), pack=False))
         self.place_in_rows(widgets)
 
-    def toggle_dark_mode(self):
-        self.dark_mode = not self.dark_mode
-        print(f"Dark mode {'enabled' if self.dark_mode else 'disabled'}")
-        self.settings["dark_mode"] = self.dark_mode
+    def set_theme(self, name):
+        self.theme_name = name
+        print(f"Theme: {name}")
+        self.settings["theme"] = name
         save_settings(self.settings)
         # Rebuild the current screen so the new colors are applied, keep the highlighted entry
         self.show_screen(self.current_screen, keep_selection=True)
