@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 import tkinter as tk
+import tkinter.font as tkfont
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import PurePosixPath
@@ -17,9 +18,7 @@ CONFIGURATION = {
     # Folder containing the books, next to this script
     "BOOKS_FOLDER": os.path.join(os.path.dirname(os.path.abspath(__file__)), "books"),
     # How many books fit on the 240x240 screen at once, the list scrolls with the selection
-    "BOOKS_VISIBLE_AT_ONCE": 5,
-    # Longer book names are cut with "..." so they fit the screen width
-    "BOOK_NAME_MAX_LENGTH": 24,
+    "BOOKS_VISIBLE_AT_ONCE": 4,
     # Reading progression of every book (page and word index), saved next to this script
     "BOOK_PROGRESSION_FILE": os.path.join(os.path.dirname(os.path.abspath(__file__)), "book_progression.pkl"),
     # User settings changed from the options menu (e.g. dark mode), saved next to this script
@@ -34,8 +33,8 @@ CONFIGURATION = {
     "COMMA_DELAY": 1.5,  # words ending with comma will take this as long
     "JUMP_WORDS_QTY": 10,  # jump that amount when required
     # Font sizes of the reader screen, scaled down for the 240x240 screen
-    "WORD_FONT_SIZE": 35,
-    "INFO_FONT_SIZE": 12,
+    "WORD_FONT_SIZE": 42,
+    "INFO_FONT_SIZE": 20,
 }
 
 # Colors used by every screen, one set per mode
@@ -230,21 +229,31 @@ class GUI():
             self.selected_index = 0
         self.update_highlight()
 
-    def make_title(self, text):
+    def make_title(self, text, pack=True):
         title = tk.Label(self.screen_frame, text=text,
                          bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
                          font=("Helvetica", 14, "bold"))
-        title.pack(pady=(0, 8))
+        if pack:
+            title.pack(pady=(0, 8))
         return title
 
-    def make_menu_item(self, text, callback):
+    def make_menu_item(self, text, callback, pack=True):
         # A Label, not a Button: entries can't be clicked, only selected with the physical buttons
         item = tk.Label(self.screen_frame, text=text,
                         bg=self.theme["BUTTON_COLOR"], fg=self.theme["TEXT_COLOR"],
                         font=("Helvetica", 11))
-        item.pack(fill="x", expand=True, pady=3)
+        if pack:
+            item.pack(fill="x", expand=True, pady=3)
         self.menu_items.append((item, callback))
         return item
+
+    def place_in_rows(self, widgets, first_row=0, width=0.90, height=0.15, margin=0.025):
+        # Stack the widgets from the top (starting at row "first_row"), each one centered horizontally,
+        # "width" and "height" of the screen, with "margin" of blank space above and below it
+        row_height = margin + height + margin
+        for row, widget in enumerate(widgets, start=first_row):
+            widget.place(relx=(1 - width) / 2, rely=row * row_height + margin,
+                         relwidth=width, relheight=height)
 
     # --- Menu navigation ---
     def update_highlight(self):
@@ -267,12 +276,12 @@ class GUI():
         elif self.selected_index >= self.first_visible_index + self.visible_item_count:
             self.first_visible_index = self.selected_index - self.visible_item_count + 1
 
-        # Hide every entry, then show only the ones in the window (in order)
+        # Hide every entry, then show only the ones in the window (in order), in the rows below the title
         for item, _ in self.menu_items:
-            item.pack_forget()
+            item.place_forget()
         last_visible_index = self.first_visible_index + self.visible_item_count
-        for item, _ in self.menu_items[self.first_visible_index:last_visible_index]:
-            item.pack(fill="x", expand=True, pady=3)
+        visible_items = [item for item, _ in self.menu_items[self.first_visible_index:last_visible_index]]
+        self.place_in_rows(visible_items, first_row=1)
 
     def select_previous(self):
         if not self.menu_items:
@@ -296,15 +305,19 @@ class GUI():
 
     # --- Main menu ---
     def create_main_menu(self):
-        self.make_title("Main menu")
+        # Sizes are percentages of the whole screen: no padding around this menu
+        self.screen_frame.pack_configure(padx=0, pady=0)
         menu_entries = [
             ("Books list", self.open_books_list),
             ("Options", self.open_options),
             ("Exit to Debian", self.exit_to_debian),
             ("Shutdown Pi", self.shutdown_pi),
         ]
+        # Title and buttons: 90% of the width, 15% of the height, 2.5% blank space above and below
+        widgets = [self.make_title("Main menu", pack=False)]
         for label, callback in menu_entries:
-            self.make_menu_item(label, callback)
+            widgets.append(self.make_menu_item(label, callback, pack=False))
+        self.place_in_rows(widgets)
 
     def open_books_list(self):
         print("Books list selected")
@@ -347,23 +360,45 @@ class GUI():
         return sorted(books, key=str.lower)
 
     def create_books_list(self):
-        self.make_title("Books")
+        # Sizes are percentages of the whole screen: no padding around this list
+        self.screen_frame.pack_configure(padx=0, pady=0)
+        # Title and the visible books: 90% of the width, 15% of the height, 2.5% blank space above and below
         books = self.get_books()
+        self.place_in_rows([self.make_title(f"Books : {len(books)}", pack=False)])
         if not books:
             # Plain text, not a menu entry: nothing to select, top right button goes back
-            tk.Label(self.screen_frame, text="No books found",
-                     bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
-                     font=("Helvetica", 11)).pack(pady=10)
+            no_books_label = tk.Label(self.screen_frame, text="No books found",
+                                      bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
+                                      font=("Helvetica", 11))
+            self.place_in_rows([no_books_label], first_row=1)
             return
 
         self.visible_item_count = CONFIGURATION["BOOKS_VISIBLE_AT_ONCE"]
-        max_length = CONFIGURATION["BOOK_NAME_MAX_LENGTH"]
+        # Longer book names are cut with "..." so they fill the whole width of the entry
+        # (measured with the bold font of the selected entry, the widest of the two)
+        bold_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
+        text_padding = 6  # blank space between the left edge of the entry and the book name
+        available_width = int(self.screen_width() * 0.90) - 2 * text_padding - 4  # minus padding and border
         for book in books:
             name = os.path.splitext(book)[0]  # hide the ".epub" extension
-            if len(name) > max_length:
-                name = name[:max_length - 3].rstrip() + "..."
+            name = self.fit_text(name, bold_font, available_width)
             # default argument so each entry keeps its own book (not the last one of the loop)
-            self.make_menu_item(name, lambda book=book: self.read_book(book))
+            item = self.make_menu_item(name, lambda book=book: self.read_book(book), pack=False)
+            item.configure(anchor="w", padx=text_padding)  # book names aligned left in their entry
+
+    def screen_width(self):
+        # Width of the window in pixels: the whole screen in fullscreen, else the RESOLUTION width
+        if CONFIGURATION["FULLSCREEN_ON_STARTUP"]:
+            return self.root.winfo_screenwidth()
+        return int(CONFIGURATION["RESOLUTION"].split("x")[0])
+
+    def fit_text(self, text, font, max_width):
+        # Keep the text as is if it fits, else cut it as little as possible and end it with "..."
+        if font.measure(text) <= max_width:
+            return text
+        while text and font.measure(text.rstrip() + "...") > max_width:
+            text = text[:-1]
+        return text.rstrip() + "..."
 
     def read_book(self, book_name):
         # book_name is the file name inside the books folder, e.g. "Le petit prince.epub"
@@ -595,9 +630,15 @@ class GUI():
 
     # --- Options menu ---
     def create_options_menu(self):
-        self.make_title("Options")
-        self.make_menu_item(f"Dark mode: {'ON' if self.dark_mode else 'OFF'}", self.toggle_dark_mode)
-        self.make_menu_item("Back", self.back_to_main_menu)
+        # Sizes are percentages of the whole screen: no padding around this menu
+        self.screen_frame.pack_configure(padx=0, pady=0)
+        # Title and entry: 90% of the width, 15% of the height, 2.5% blank space above and below
+        widgets = [
+            self.make_title("Options", pack=False),
+            self.make_menu_item(f"Dark mode: {'ON' if self.dark_mode else 'OFF'}",
+                                self.toggle_dark_mode, pack=False),
+        ]
+        self.place_in_rows(widgets)
 
     def toggle_dark_mode(self):
         self.dark_mode = not self.dark_mode
@@ -637,7 +678,7 @@ class GUI():
 
     def go_back(self):
         # Runs in the UI thread: depends on the screen currently displayed
-        if self.current_screen == self.create_books_list:
+        if self.current_screen in (self.create_books_list, self.create_options_menu):
             self.back_to_main_menu()
         elif self.current_screen == self.create_reader:
             self.back_to_books_list()
@@ -712,6 +753,8 @@ elif sys.platform.startswith('linux'):
     # Define the GPIO pins used for input buttons
     # button_pins = [16, 5, 13, 6, 26, 19, 21, 20, 15, 12, 14, 23]
     button_pins = [19, 5, 16, 13, 6, 26, 15, 12, 21, 20]
+
+    #TODO add pins 14 and 23, they should switch between progression of book and page to percentage  / absolute value
 
 
     # Define the event function that runs when any button is pressed
