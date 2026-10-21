@@ -32,8 +32,8 @@ CONFIGURATION = {
     "COMMA_DELAY": 1.5,  # words ending with comma will take this as long
     "JUMP_WORDS_QTY": 10,  # jump that amount when required
     # Font sizes of the reader screen, scaled down for the 240x240 screen
-    "WORD_FONT_SIZE": 20,
-    "INFO_FONT_SIZE": 7,
+    "WORD_FONT_SIZE": 35,
+    "INFO_FONT_SIZE": 12,
 }
 
 # Colors used by every screen, one set per mode
