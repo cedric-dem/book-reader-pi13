@@ -63,7 +63,7 @@ THEMES = {
         "HIGHLIGHT_COLOR": "#00FF41",
         "HIGHLIGHT_TEXT_COLOR": "#000000",
     },
-    "pastel": {  # soft lavender, pink and mint tones with dark plum text
+    "pastel": {  # soft lavender and pink tones with dark plum text
         "BACKGROUND_COLOR": "#FDF6F0",
         "BUTTON_COLOR": "#E6DDF5",
         "BUTTON_ACTIVE_COLOR": "#D4C4EE",
