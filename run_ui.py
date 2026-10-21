@@ -937,8 +937,8 @@ elif sys.platform.startswith('linux'):
     # button_pins = [16, 5, 13, 6, 26, 19, 21, 20, 15, 12, 14, 23]
     button_pins = [19, 5, 16, 13, 6, 26, 15, 12, 21, 20]
 
-    #TODO add pins 14 and 23, they should switch between progression of book and page to percentage  / absolute value
 
+    # TODO add pins 14 and 23, they should switch between progression of book and page to percentage  / absolute value
 
     # Define the event function that runs when any button is pressed
     def on_button_pressed(button):
