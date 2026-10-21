@@ -11,7 +11,8 @@ import zipfile
 from pathlib import PurePosixPath
 
 CONFIGURATION = {
-    "IS_FULLSCREEN_AT_START": False,
+    # True: the app starts in fullscreen, False: it starts in a RESOLUTION sized window
+    "FULLSCREEN_ON_STARTUP": True,
     "RESOLUTION": "240x240",
     "DARK_MODE_AT_START": True,
     # Folder containing the books, next to this script
@@ -123,6 +124,7 @@ class GUI():
     def __init__(self):
         self.root = tk.Tk()
         self.root.geometry(CONFIGURATION["RESOLUTION"])
+        self.root.attributes("-fullscreen", CONFIGURATION["FULLSCREEN_ON_STARTUP"])
 
         self.dark_mode = CONFIGURATION["DARK_MODE_AT_START"]
         self.screen_frame = None
