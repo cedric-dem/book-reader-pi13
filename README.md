@@ -15,7 +15,7 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Adjustable speed in 10% steps, pause/play, jump ±10 words, previous/next chapter.
 - Progress saved per book (chapter and word) in `book_progression.pkl`.
 - Menus driven only by the physical buttons: main menu, books list (scrolling), options.
-- Dark and light themes.
+- Dark and light themes, the choice is remembered in `settings.pkl` (dark on first launch).
 - "Exit to Debian" and "Shutdown Pi" from the main menu.
 - Runs on Windows for development, with the keyboard standing in for the GPIO buttons.
 
@@ -81,11 +81,11 @@ All settings are in the `CONFIGURATION` dictionary at the top of `run_ui.py`:
 |--------------------------|--------------|-----------------------------------------------------------|
 | `IS_FULLSCREEN_AT_START` | `False`      | Start in fullscreen                                       |
 | `RESOLUTION`             | `"240x240"`  | Window size                                               |
-| `DARK_MODE_AT_START`     | `True`       | Start in dark mode                                        |
 | `BOOKS_FOLDER`           | `./books`    | Where the EPUB files are                                  |
 | `BOOKS_VISIBLE_AT_ONCE`  | `5`          | Number of books shown at once in the list                 |
 | `BOOK_NAME_MAX_LENGTH`   | `24`         | Longer titles are cut with `...`                          |
 | `BOOK_PROGRESSION_FILE`  | `./book_progression.pkl` | Saved progress of every book                  |
+| `SETTINGS_FILE`          | `./settings.pkl`         | Saved user settings (dark mode)               |
 | `GENERAL_DELAY`          | `0.15`       | Base delay (seconds) at 100% for a reference-size word    |
 | `STEP_PERCENTAGE`        | `10`         | Speed change per button press                             |
 | `WORD_SIZE_REFERENCE`    | `5`          | Word length that gets exactly the base delay              |
@@ -116,6 +116,7 @@ book-reader-pi13/
 ├── run_ui.py               # the whole application
 ├── books/                  # your .epub files
 ├── book_progression.pkl    # saved progress (created automatically)
+├── settings.pkl           # saved settings (created automatically)
 └── layout.png              # button layout
 ```
 

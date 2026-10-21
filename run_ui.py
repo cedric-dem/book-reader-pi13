@@ -14,7 +14,6 @@ CONFIGURATION = {
     # True: the app starts in fullscreen, False: it starts in a RESOLUTION sized window
     "FULLSCREEN_ON_STARTUP": True,
     "RESOLUTION": "240x240",
-    "DARK_MODE_AT_START": True,
     # Folder containing the books, next to this script
     "BOOKS_FOLDER": os.path.join(os.path.dirname(os.path.abspath(__file__)), "books"),
     # How many books fit on the 240x240 screen at once, the list scrolls with the selection
@@ -23,6 +22,8 @@ CONFIGURATION = {
     "BOOK_NAME_MAX_LENGTH": 24,
     # Reading progression of every book (page and word index), saved next to this script
     "BOOK_PROGRESSION_FILE": os.path.join(os.path.dirname(os.path.abspath(__file__)), "book_progression.pkl"),
+    # User settings changed from the options menu (e.g. dark mode), saved next to this script
+    "SETTINGS_FILE": os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.pkl"),
 
     # --- Word by word reading (same values as UI_reader/config.py) ---
     "GENERAL_DELAY": 0.15,  # initial delay for 100% speed and word size reference
@@ -120,13 +121,35 @@ def save_current_state(current_book, current_page_index, current_word_index):
         pickle.dump(current_state, f)
 
 
+# Settings used on first launch, when no settings file exists yet
+DEFAULT_SETTINGS = {
+    "dark_mode": True,
+}
+
+
+def load_settings():
+    settings = dict(DEFAULT_SETTINGS)
+    settings_file = CONFIGURATION["SETTINGS_FILE"]
+    if os.path.exists(settings_file):
+        with open(settings_file, "rb") as f:
+            settings.update(pickle.load(f))
+    return settings
+
+
+def save_settings(settings):
+    print("=> save settings")
+    with open(CONFIGURATION["SETTINGS_FILE"], "wb") as f:
+        pickle.dump(settings, f)
+
+
 class GUI():
     def __init__(self):
         self.root = tk.Tk()
         self.root.geometry(CONFIGURATION["RESOLUTION"])
         self.root.attributes("-fullscreen", CONFIGURATION["FULLSCREEN_ON_STARTUP"])
 
-        self.dark_mode = CONFIGURATION["DARK_MODE_AT_START"]
+        self.settings = load_settings()
+        self.dark_mode = self.settings["dark_mode"]
         self.screen_frame = None
         self.current_screen = None  # function that builds the screen currently displayed
 
@@ -579,6 +602,8 @@ class GUI():
     def toggle_dark_mode(self):
         self.dark_mode = not self.dark_mode
         print(f"Dark mode {'enabled' if self.dark_mode else 'disabled'}")
+        self.settings["dark_mode"] = self.dark_mode
+        save_settings(self.settings)
         # Rebuild the current screen so the new colors are applied, keep the highlighted entry
         self.show_screen(self.current_screen, keep_selection=True)
 
