@@ -73,6 +73,80 @@ THEMES = {
     },
 }
 
+# Every text shown on screen, one set per language (chosen in the options menu, in this order).
+# "{...}" parts are filled in by GUI.tr, e.g. tr("books_title", count=12)
+TRANSLATIONS = {
+    "en": {
+        "language_name": "English",
+        "main_menu": "Main menu",
+        "books_list": "Books list",
+        "options": "Options",
+        "exit_to_debian": "Exit to Debian",
+        "shutdown_pi": "Shutdown Pi",
+        "books_title": "Books : {count}",
+        "no_books_found": "No books found",
+        "page_progression": "This page progression :\n{current} / {total} words",
+        "book_progression": "Book progression :\n{current} / {total} pages",
+        "battery": "Battery :\n{level} %",
+        "delay": "Delay :\n{percentage}%",
+        "empty_book": "empty book",
+        "empty_page": "empty page",
+        "finished_page": "finished page",
+        "theme": "Theme : {name}",
+        "language": "Language : {name}",
+        "theme_dark": "Dark",
+        "theme_light": "Light",
+        "theme_matrix": "Matrix",
+        "theme_pastel": "Pastel",
+    },
+    "fr": {
+        "language_name": "Français",
+        "main_menu": "Menu principal",
+        "books_list": "Liste des livres",
+        "options": "Options",
+        "exit_to_debian": "Quitter vers Debian",
+        "shutdown_pi": "Éteindre le Pi",
+        "books_title": "Livres : {count}",
+        "no_books_found": "Aucun livre trouvé",
+        "page_progression": "Progression de la page :\n{current} / {total} mots",
+        "book_progression": "Progression du livre :\n{current} / {total} pages",
+        "battery": "Batterie :\n{level} %",
+        "delay": "Délai :\n{percentage}%",
+        "empty_book": "livre vide",
+        "empty_page": "page vide",
+        "finished_page": "page terminée",
+        "theme": "Thème : {name}",
+        "language": "Langue : {name}",
+        "theme_dark": "Sombre",
+        "theme_light": "Clair",
+        "theme_matrix": "Matrix",
+        "theme_pastel": "Pastel",
+    },
+    "es": {
+        "language_name": "Español",
+        "main_menu": "Menú principal",
+        "books_list": "Lista de libros",
+        "options": "Opciones",
+        "exit_to_debian": "Salir a Debian",
+        "shutdown_pi": "Apagar la Pi",
+        "books_title": "Libros: {count}",
+        "no_books_found": "No se encontraron libros",
+        "page_progression": "Progreso de la página:\n{current} / {total} palabras",
+        "book_progression": "Progreso del libro:\n{current} / {total} páginas",
+        "battery": "Batería:\n{level} %",
+        "delay": "Retardo:\n{percentage}%",
+        "empty_book": "libro vacío",
+        "empty_page": "página vacía",
+        "finished_page": "página terminada",
+        "theme": "Tema: {name}",
+        "language": "Idioma: {name}",
+        "theme_dark": "Oscuro",
+        "theme_light": "Claro",
+        "theme_matrix": "Matrix",
+        "theme_pastel": "Pastel",
+    },
+}
+
 
 def read_epub_file(epub_file_path: str) -> list[list[str]]:
     # Returns the book as a list of pages (one per chapter of the EPUB spine), each page a list of words
@@ -139,6 +213,7 @@ def save_current_state(current_book, current_page_index, current_word_index):
 # Settings used on first launch, when no settings file exists yet
 DEFAULT_SETTINGS = {
     "theme": "dark",  # one of the THEMES names
+    "language": "en",  # one of the TRANSLATIONS codes
 }
 
 
@@ -156,6 +231,9 @@ def load_settings():
     # Unknown theme name (e.g. removed from THEMES): back to the default one
     if settings["theme"] not in THEMES:
         settings["theme"] = DEFAULT_SETTINGS["theme"]
+    # Unknown language code (e.g. removed from TRANSLATIONS): back to the default one
+    if settings["language"] not in TRANSLATIONS:
+        settings["language"] = DEFAULT_SETTINGS["language"]
     return settings
 
 
@@ -173,6 +251,7 @@ class GUI():
 
         self.settings = load_settings()
         self.theme_name = self.settings["theme"]
+        self.language = self.settings["language"]
         self.screen_frame = None
         self.current_screen = None  # function that builds the screen currently displayed
 
@@ -230,6 +309,19 @@ class GUI():
     @property
     def theme(self):
         return THEMES[self.theme_name]
+
+    def tr(self, key, **values):
+        # Text of "key" in the current language, with its "{...}" parts filled in.
+        # Falls back to English if a translation is missing.
+        text = TRANSLATIONS[self.language].get(key, TRANSLATIONS["en"][key])
+        return text.format(**values)
+
+    def theme_display_name(self, name):
+        # Translated name of a theme, or the theme name itself if it has no translation yet
+        key = f"theme_{name}"
+        if key in TRANSLATIONS[self.language] or key in TRANSLATIONS["en"]:
+            return self.tr(key)
+        return name.capitalize()
 
     def show_screen(self, build_function, keep_selection=False):
         # Destroy the current screen and build a new one with the current theme
@@ -332,13 +424,13 @@ class GUI():
         # Sizes are percentages of the whole screen: no padding around this menu
         self.screen_frame.pack_configure(padx=0, pady=0)
         menu_entries = [
-            ("Books list", self.open_books_list),
-            ("Options", self.open_options),
-            ("Exit to Debian", self.exit_to_debian),
-            ("Shutdown Pi", self.shutdown_pi),
+            (self.tr("books_list"), self.open_books_list),
+            (self.tr("options"), self.open_options),
+            (self.tr("exit_to_debian"), self.exit_to_debian),
+            (self.tr("shutdown_pi"), self.shutdown_pi),
         ]
         # Title and buttons: 90% of the width, 15% of the height, 2.5% blank space above and below
-        widgets = [self.make_title("Main menu", pack=False)]
+        widgets = [self.make_title(self.tr("main_menu"), pack=False)]
         for label, callback in menu_entries:
             widgets.append(self.make_menu_item(label, callback, pack=False))
         self.place_in_rows(widgets)
@@ -388,10 +480,10 @@ class GUI():
         self.screen_frame.pack_configure(padx=0, pady=0)
         # Title and the visible books: 90% of the width, 15% of the height, 2.5% blank space above and below
         books = self.get_books()
-        self.place_in_rows([self.make_title(f"Books : {len(books)}", pack=False)])
+        self.place_in_rows([self.make_title(self.tr("books_title", count=len(books)), pack=False)])
         if not books:
             # Plain text, not a menu entry: nothing to select, top right button goes back
-            no_books_label = tk.Label(self.screen_frame, text="No books found",
+            no_books_label = tk.Label(self.screen_frame, text=self.tr("no_books_found"),
                                       bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
                                       font=("Helvetica", 11))
             self.place_in_rows([no_books_label], first_row=1)
@@ -452,16 +544,17 @@ class GUI():
         self.current_word_label = tk.Label(self.screen_frame, text="",
                                            font=("Helvetica", CONFIGURATION["WORD_FONT_SIZE"]),
                                            anchor="center", justify="center", bg=background, fg=text_color)
-        self.page_progression_label = tk.Label(self.screen_frame, text="This page progression :\n",
+        # The texts are filled in by the update_*_label functions below
+        self.page_progression_label = tk.Label(self.screen_frame, text="",
                                                font=info_font, anchor="w", justify="left",
                                                bg=background, fg=text_color)
-        self.book_progression_label = tk.Label(self.screen_frame, text="Book progression :\n",
+        self.book_progression_label = tk.Label(self.screen_frame, text="",
                                                font=info_font, anchor="e", justify="right",
                                                bg=background, fg=text_color)
-        self.battery_label = tk.Label(self.screen_frame, text="Battery :\n42 %",
+        self.battery_label = tk.Label(self.screen_frame, text=self.tr("battery", level=42),
                                       font=info_font, anchor="w", justify="left",
                                       bg=background, fg=text_color)
-        self.speed_label = tk.Label(self.screen_frame, text="Delay :\n",
+        self.speed_label = tk.Label(self.screen_frame, text="",
                                     font=info_font, anchor="e", justify="right",
                                     bg=background, fg=text_color)
 
@@ -478,30 +571,30 @@ class GUI():
 
     def update_page_progression_label(self):
         if not self.pages_list:
-            self.page_progression_label.config(text="This page progression:\n0 / 0 words")
+            self.page_progression_label.config(text=self.tr("page_progression", current=0, total=0))
             return
 
         current_page_words = self.pages_list[self.current_page_index]
         total_words = len(current_page_words)
         current_word = min(self.current_word_index, total_words)
         self.page_progression_label.config(
-            text=f"This page progression:\n{current_word} / {total_words} words"
+            text=self.tr("page_progression", current=current_word, total=total_words)
         )
 
     def update_book_progression_label(self):
         total_pages = len(self.pages_list)
 
         if total_pages == 0:
-            self.book_progression_label.config(text="Book progression:\n0 / 0 pages")
+            self.book_progression_label.config(text=self.tr("book_progression", current=0, total=0))
             return
 
         current_page = min(self.current_page_index + 1, total_pages)
         self.book_progression_label.config(
-            text=f"Book progression:\n{current_page} / {total_pages} pages"
+            text=self.tr("book_progression", current=current_page, total=total_pages)
         )
 
     def update_speed_label(self):
-        self.speed_label.config(text=f"Delay :\n{self.speed_percentage:.0f}%")
+        self.speed_label.config(text=self.tr("delay", percentage=f"{self.speed_percentage:.0f}"))
 
     def calculate_delay_seconds(self, word):
         word_size_coefficient = len(word) / CONFIGURATION["WORD_SIZE_REFERENCE"]
@@ -525,13 +618,13 @@ class GUI():
             return
 
         if not self.pages_list:
-            self.current_word_label.config(text="empty book")
+            self.current_word_label.config(text=self.tr("empty_book"))
             return
 
         self.update_page_progression_label()
 
         if len(self.pages_list[self.current_page_index]) == 0:
-            self.current_word_label.config(text="empty page")  # todo change this
+            self.current_word_label.config(text=self.tr("empty_page"))  # todo change this
 
         else:
             if self.current_word_index < len(self.pages_list[self.current_page_index]):
@@ -547,7 +640,7 @@ class GUI():
                     int(delay_seconds * 1000), self.update_word
                 )
             else:
-                self.current_word_label.config(text="finished page")  # automatically go to the next page ?
+                self.current_word_label.config(text=self.tr("finished_page"))  # automatically go to the next page ?
 
     def cancel_word_update(self):
         if self.word_update_after_id is not None:
@@ -657,11 +750,25 @@ class GUI():
         # Sizes are percentages of the whole screen: no padding around this menu
         self.screen_frame.pack_configure(padx=0, pady=0)
         # Title and one entry per option: 90% of the width, 15% of the height, 2.5% blank space above and below
-        widgets = [self.make_title("Options", pack=False)]
-        # A single theme entry: each validation switches to the next theme (back to the first after the last)
-        widgets.append(self.make_menu_item(f"Theme : {self.theme_name.capitalize()}",
+        widgets = [self.make_title(self.tr("options"), pack=False)]
+        # Each entry cycles through its values on validation (back to the first after the last)
+        widgets.append(self.make_menu_item(self.tr("theme", name=self.theme_display_name(self.theme_name)),
                                            self.next_theme, pack=False))
+        widgets.append(self.make_menu_item(self.tr("language", name=self.tr("language_name")),
+                                           self.next_language, pack=False))
         self.place_in_rows(widgets)
+
+    def next_language(self):
+        codes = list(TRANSLATIONS)
+        self.set_language(codes[(codes.index(self.language) + 1) % len(codes)])
+
+    def set_language(self, code):
+        self.language = code
+        print(f"Language: {code}")
+        self.settings["language"] = code
+        save_settings(self.settings)
+        # Rebuild the current screen so the new texts are shown, keep the highlighted entry
+        self.show_screen(self.current_screen, keep_selection=True)
 
     def next_theme(self):
         names = list(THEMES)

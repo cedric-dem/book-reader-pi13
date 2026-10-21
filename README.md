@@ -16,6 +16,7 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Progress saved per book (chapter and word) in `book_progression.pkl`.
 - Menus driven only by the physical buttons: main menu, books list (scrolling), options.
 - Three themes: dark, light and matrix (green text on black), chosen in **Options** and remembered in `settings.pkl` (dark on first launch).
+- Interface in English, French or Spanish, chosen in **Options** and remembered in `settings.pkl` (English on first launch).
 - "Exit to Debian" and "Shutdown Pi" from the main menu.
 - Runs on Windows for development, with the keyboard standing in for the GPIO buttons.
 
@@ -85,7 +86,7 @@ All settings are in the `CONFIGURATION` dictionary at the top of `run_ui.py`:
 | `BOOKS_VISIBLE_AT_ONCE`  | `5`          | Number of books shown at once in the list                 |
 | `BOOK_NAME_MAX_LENGTH`   | `24`         | Longer titles are cut with `...`                          |
 | `BOOK_PROGRESSION_FILE`  | `./book_progression.pkl` | Saved progress of every book                  |
-| `SETTINGS_FILE`          | `./settings.pkl`         | Saved user settings (theme)                   |
+| `SETTINGS_FILE`          | `./settings.pkl`         | Saved user settings (theme, language)         |
 | `GENERAL_DELAY`          | `0.15`       | Base delay (seconds) at 100% for a reference-size word    |
 | `STEP_PERCENTAGE`        | `10`         | Speed change per button press                             |
 | `WORD_SIZE_REFERENCE`    | `5`          | Word length that gets exactly the base delay              |
@@ -103,6 +104,8 @@ delay = OFFSET_DELAY_MS + punctuation × (len(word) / WORD_SIZE_REFERENCE) × GE
 ```
 
 Colors for the three themes are in the `THEMES` dictionary. Each entry added there also appears in the options menu.
+
+Every on-screen text is in the `TRANSLATIONS` dictionary, one entry per language (`en`, `fr`, `es`). To add a language, copy the `en` block under a new code and translate its values: it then appears in the options menu. A missing key falls back to English.
 
 ## Raspberry Pi notes
 
