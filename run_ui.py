@@ -1057,13 +1057,9 @@ elif sys.platform.startswith('linux'):
     from gpiozero import Button
 
     # Define the GPIO pins used for input buttons
-    # button_pins = [16, 5, 13, 6, 26, 19, 21, 20, 15, 12, 14, 23]
-    # 23 = left button (hide / show the progress bars)
-    button_pins = [19, 5, 16, 13, 6, 26, 15, 12, 21, 20, 23]
+    button_pins = [5, 6, 12, 13, 14, 15, 16, 19, 20, 21, 23, 26]
 
 
-    # TODO add pins 14 and 23, they should switch between progression of book and page to percentage  / absolute value
-    # 14R 23L
     # Define the event function that runs when any button is pressed
     def on_button_pressed(button):
         current_pin = str(button.pin)  # todo
