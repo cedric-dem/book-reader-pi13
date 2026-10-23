@@ -13,7 +13,7 @@ from pathlib import PurePosixPath
 
 CONFIGURATION = {
     # True: the app starts in fullscreen, False: it starts in a RESOLUTION sized window
-    "FULLSCREEN_ON_STARTUP": True,
+    "FULLSCREEN_ON_STARTUP": False,
     "RESOLUTION": "240x240",
     # Folder containing the books, next to this script
     "BOOKS_FOLDER": os.path.join(os.path.dirname(os.path.abspath(__file__)), "books"),
@@ -27,6 +27,8 @@ CONFIGURATION = {
     # --- Word by word reading (same values as UI_reader/config.py) ---
     "GENERAL_DELAY": 0.15,  # initial delay for 100% speed and word size reference
     "STEP_PERCENTAGE": 10,  # percentage granularity of speed setting
+    "MIN_DELAY_PERCENTAGE": 50,  # the user cannot set the delay below this
+    "MAX_DELAY_PERCENTAGE": 150,  # the user cannot set the delay above this
     "WORD_SIZE_REFERENCE": 5,  # words longer than that will be displayed for longer
     "OFFSET_DELAY_MS": 0.15,  # constant offset
     "DOT_DELAY": 2.0,  # words ending with dot will take this as long
@@ -94,10 +96,11 @@ TRANSLATIONS = {
         "shutdown_pi": "Shutdown Pi",
         "books_title": "Books : {count}",
         "no_books_found": "No books found",
-        "page_progression": "This page progression :\n{current} / {total} words",
-        "book_progression": "Book progression :\n{current} / {total} pages",
-        "battery": "Battery :\n{level} %",
-        "delay": "Delay :\n{percentage}%",
+        "page_progression": "This page progression : {current} / {total} words",
+        "book_progression": "Book progression : {current} / {total} pages",
+        "book_words": "Book total words : {current} / {total}",
+        "battery": "Battery : {level} %",
+        "delay": "Delay : {percentage}%",
         "empty_book": "empty book",
         "empty_page": "empty page",
         "finished_page": "finished page",
@@ -117,10 +120,11 @@ TRANSLATIONS = {
         "shutdown_pi": "Éteindre le Pi",
         "books_title": "Livres : {count}",
         "no_books_found": "Aucun livre trouvé",
-        "page_progression": "Progression de la page :\n{current} / {total} mots",
-        "book_progression": "Progression du livre :\n{current} / {total} pages",
-        "battery": "Batterie :\n{level} %",
-        "delay": "Délai :\n{percentage}%",
+        "page_progression": "Progression de la page : {current} / {total} mots",
+        "book_progression": "Progression du livre : {current} / {total} pages",
+        "book_words": "Mots du livre : {current} / {total}",
+        "battery": "Batterie : {level} %",
+        "delay": "Délai : {percentage}%",
         "empty_book": "livre vide",
         "empty_page": "page vide",
         "finished_page": "page terminée",
@@ -140,10 +144,11 @@ TRANSLATIONS = {
         "shutdown_pi": "Apagar la Pi",
         "books_title": "Libros: {count}",
         "no_books_found": "No se encontraron libros",
-        "page_progression": "Progreso de la página:\n{current} / {total} palabras",
-        "book_progression": "Progreso del libro:\n{current} / {total} páginas",
-        "battery": "Batería:\n{level} %",
-        "delay": "Retardo:\n{percentage}%",
+        "page_progression": "Progreso de la página: {current} / {total} palabras",
+        "book_progression": "Progreso del libro: {current} / {total} páginas",
+        "book_words": "Palabras del libro: {current} / {total}",
+        "battery": "Batería: {level} %",
+        "delay": "Retardo: {percentage}%",
         "empty_book": "libro vacío",
         "empty_page": "página vacía",
         "finished_page": "página terminada",
@@ -206,6 +211,11 @@ def load_state_if_any():
             return data
     else:
         return {}
+
+
+def format_number(number):
+    # Groups digits by three with spaces for readability, e.g. 123456 -> "123 456"
+    return f"{number:,}".replace(",", " ")
 
 
 def save_current_state(current_book, current_page_index, current_word_index):
@@ -288,15 +298,20 @@ class GUI():
         self.pages_list = []  # pages of the current book, each page a list of words
         self.current_page_index = 0
         self.current_word_index = 0
+        # Word counts for the "book total words" bar: the total is computed once when the book is
+        # opened, the words of the previous pages once per page change (see update_words_before_current_page)
+        self.total_book_words = 0
+        self.words_before_current_page = 0
         self.is_paused = False
         self.word_update_after_id = None  # id of the scheduled update_word, to cancel it
         self.speed_percentage = 100
         # Labels of the reader screen, created by create_reader
         self.current_word_label = None
-        self.page_progression_label = None
-        self.book_progression_label = None
-        self.battery_label = None
-        self.speed_label = None
+        self.progress_bars = {}  # progress bars of the reader screen, by position (see create_progress_bar)
+        # The left button (keyboard "e" / GPIO 23) hides or shows all the progress bars of the reader.
+        # Kept while the app runs, so it stays the same when opening another book.
+        self.progress_bars_visible = True
+        self.battery_level = 42  # placeholder until the battery is actually read
 
         self.show_screen(self.create_main_menu)
         self.root.after(20, self.process_pending_actions)
@@ -551,6 +566,12 @@ class GUI():
             self.current_word_index = 0
             self.current_page_index = 0
 
+        # Saved page may not exist anymore (e.g. book file replaced): stay inside the book
+        self.current_page_index = max(0, min(self.current_page_index, len(self.pages_list) - 1))
+        # Total words of the book: computed once here, never changes while reading
+        self.total_book_words = sum(len(page) for page in self.pages_list)
+        self.update_words_before_current_page()
+
         self.show_screen(self.create_reader)
         if CONFIGURATION["LOGGING"]:
             print(f"Opening book: {book_name}")
@@ -560,62 +581,123 @@ class GUI():
         self.is_paused = False
         background = self.theme["BACKGROUND_COLOR"]
         text_color = self.theme["TEXT_COLOR"]
-        info_font = ("Helvetica", CONFIGURATION["INFO_FONT_SIZE"])
 
         self.current_word_label = tk.Label(self.screen_frame, text="",
                                            font=("Helvetica", CONFIGURATION["WORD_FONT_SIZE"]),
                                            anchor="center", justify="center", bg=background, fg=text_color)
-        # The texts are filled in by the update_*_label functions below
-        self.page_progression_label = tk.Label(self.screen_frame, text="",
-                                               font=info_font, anchor="w", justify="left",
-                                               bg=background, fg=text_color)
-        self.book_progression_label = tk.Label(self.screen_frame, text="",
-                                               font=info_font, anchor="e", justify="right",
-                                               bg=background, fg=text_color)
-        self.battery_label = tk.Label(self.screen_frame, text=self.tr("battery", level=42),
-                                      font=info_font, anchor="w", justify="left",
-                                      bg=background, fg=text_color)
-        self.speed_label = tk.Label(self.screen_frame, text="",
-                                    font=info_font, anchor="e", justify="right",
-                                    bg=background, fg=text_color)
+        # The previous screen (and its progress bars) was destroyed by show_screen
+        self.progress_bars = {}
 
-        # Same layout as UI_reader/main.py: word in the middle, one info label in each corner
-        self.current_word_label.place(relx=0.0, rely=0.30, relwidth=1.0, relheight=0.40)
-        self.page_progression_label.place(relx=0.0, rely=0.0, relwidth=0.48, relheight=0.12)
-        self.book_progression_label.place(relx=0.52, rely=0.0, relwidth=0.48, relheight=0.12)
-        self.battery_label.place(relx=0.0, rely=0.88, relwidth=0.48, relheight=0.12)
-        self.speed_label.place(relx=0.52, rely=0.88, relwidth=0.48, relheight=0.12)
+        # Word in the middle, page progression bar top-left with book progression bar right below it
+        # and book words bar below that, battery bar bottom-left with delay bar right below it
+        # (all bars are created by the update_*_label functions, see create_progress_bar)
+        self.current_word_label.place(relx=0.0, rely=0.36, relwidth=1.0, relheight=0.40)
 
+        self.update_battery_label()
         self.update_speed_label()
         self.update_book_progression_label()
+        self.update_book_words_label()
         self.update_word()
+
+    def create_progress_bar(self, progress, text, position):
+        # Progress bar of the reader screen, centered and 90% of its width, with the text written over it.
+        # progress: between 0 (empty) and 1 (full). position: height of the top of the bar,
+        # between 0 (top of the screen) and 1 (bottom), like rely of place().
+        # The bar is created the first time, then only updated, so it can be called for every word.
+        progress = max(0.0, min(1.0, progress))
+        bar = self.progress_bars.get(position)
+
+        if bar is None or not bar[0].winfo_exists():
+            info_font = ("Helvetica", CONFIGURATION["INFO_FONT_SIZE"])
+            # Empty part: the menu entry colors
+            background = tk.Label(self.screen_frame, text=text, font=info_font,
+                                  anchor="w", justify="left", padx=8, borderwidth=0,
+                                  bg=self.theme["BUTTON_COLOR"], fg=self.theme["TEXT_COLOR"])
+            # Filled part: the selected menu entry colors, drawn over the empty part. It has the
+            # same text at the same place, cut where the bar ends, so the text stays readable on both.
+            # It is a sibling of the empty part (not a child): a widget placed inside a Label is not
+            # redrawn reliably when that Label's text changes (e.g. the delay going from 100% to 90%)
+            filled = tk.Label(self.screen_frame, text=text, font=info_font,
+                              anchor="w", justify="left", padx=8, borderwidth=0,
+                              bg=self.theme["HIGHLIGHT_COLOR"], fg=self.theme["HIGHLIGHT_TEXT_COLOR"])
+            bar = (background, filled)
+            self.progress_bars[position] = bar
+
+        background, filled = bar
+        background.config(text=text)
+        filled.config(text=text)
+        if not self.progress_bars_visible:
+            # Hidden with the left button: texts are still kept up to date, nothing is shown
+            background.place_forget()
+            filled.place_forget()
+            return background
+        background.place(relx=0.05, rely=position, relwidth=0.90, relheight=0.10)
+        if progress > 0:
+            # Same left side and height as the empty part, only its width depends on the progress
+            filled.place(relx=0.05, rely=position, relwidth=0.90 * progress, relheight=0.10)
+            filled.lift(background)
+        else:
+            filled.place_forget()
+        return background
 
     def update_page_progression_label(self):
         if not self.pages_list:
-            self.page_progression_label.config(text=self.tr("page_progression", current=0, total=0))
+            self.create_progress_bar(0, self.tr("page_progression", current=0, total=0), 0.01)
             return
 
         current_page_words = self.pages_list[self.current_page_index]
         total_words = len(current_page_words)
         current_word = min(self.current_word_index, total_words)
-        self.page_progression_label.config(
-            text=self.tr("page_progression", current=current_word, total=total_words)
-        )
+        progress = current_word / total_words if total_words else 0
+        self.create_progress_bar(progress,
+                                 self.tr("page_progression", current=format_number(current_word),
+                                         total=format_number(total_words)),
+                                 0.01)
 
     def update_book_progression_label(self):
         total_pages = len(self.pages_list)
 
         if total_pages == 0:
-            self.book_progression_label.config(text=self.tr("book_progression", current=0, total=0))
+            self.create_progress_bar(0, self.tr("book_progression", current=0, total=0), 0.13)
             return
 
         current_page = min(self.current_page_index + 1, total_pages)
-        self.book_progression_label.config(
-            text=self.tr("book_progression", current=current_page, total=total_pages)
-        )
+        self.create_progress_bar(current_page / total_pages,
+                                 self.tr("book_progression", current=current_page, total=total_pages),
+                                 0.13)
+
+    def update_words_before_current_page(self):
+        # Sum of the words of all the pages before the current one. Only called when the page
+        # changes (opening a book, previous / next page), never for every word.
+        self.words_before_current_page = sum(len(page) for page in self.pages_list[:self.current_page_index])
+
+    def update_book_words_label(self):
+        # Words read in the whole book = words of the previous pages (computed once per page change)
+        # + position in the current page. Cheap enough to be called for every word.
+        if self.total_book_words == 0:
+            self.create_progress_bar(0, self.tr("book_words", current=0, total=0), 0.25)
+            return
+
+        current_page_words = len(self.pages_list[self.current_page_index])
+        current_words = self.words_before_current_page + min(self.current_word_index, current_page_words)
+        self.create_progress_bar(current_words / self.total_book_words,
+                                 self.tr("book_words", current=format_number(current_words),
+                                         total=format_number(self.total_book_words)),
+                                 0.25)
+
+    def update_battery_label(self):
+        # Full bar = 100% battery
+        self.create_progress_bar(self.battery_level / 100,
+                                 self.tr("battery", level=self.battery_level),
+                                 0.77)
 
     def update_speed_label(self):
-        self.speed_label.config(text=self.tr("delay", percentage=f"{self.speed_percentage:.0f}"))
+        # Empty bar = MIN_DELAY_PERCENTAGE, full bar = MAX_DELAY_PERCENTAGE (100% is half full)
+        minimum = CONFIGURATION["MIN_DELAY_PERCENTAGE"]
+        maximum = CONFIGURATION["MAX_DELAY_PERCENTAGE"]
+        self.create_progress_bar((self.speed_percentage - minimum) / (maximum - minimum),
+                                 self.tr("delay", percentage=f"{self.speed_percentage:.0f}"),
+                                 0.89)
 
     def calculate_delay_seconds(self, word):
         word_size_coefficient = len(word) / CONFIGURATION["WORD_SIZE_REFERENCE"]
@@ -656,6 +738,7 @@ class GUI():
 
                 self.current_word_index = self.current_word_index + 1
                 self.update_page_progression_label()
+                self.update_book_words_label()
 
                 self.word_update_after_id = self.root.after(
                     int(delay_seconds * 1000), self.update_word
@@ -670,21 +753,21 @@ class GUI():
 
     def update_speed(self, increase):
         # Same as UI_reader/main.py: the percentage is a delay, higher = slower reading
-        if increase:
-            self.speed_percentage += CONFIGURATION["STEP_PERCENTAGE"]
+        # The delay is kept between MIN_DELAY_PERCENTAGE and MAX_DELAY_PERCENTAGE
+        minimum = CONFIGURATION["MIN_DELAY_PERCENTAGE"]
+        maximum = CONFIGURATION["MAX_DELAY_PERCENTAGE"]
+        step = CONFIGURATION["STEP_PERCENTAGE"] if increase else -CONFIGURATION["STEP_PERCENTAGE"]
+        new_percentage = max(minimum, min(maximum, self.speed_percentage + step))
+
+        if new_percentage == self.speed_percentage:
             if CONFIGURATION["LOGGING"]:
-                print(f"Delay increased : {self.speed_percentage:.2f}%")
-            self.update_speed_label()
+                print("Max delay reached" if increase else "Min delay reached")
             return
 
-        if self.speed_percentage > CONFIGURATION["STEP_PERCENTAGE"] + 1:
-            self.speed_percentage -= CONFIGURATION["STEP_PERCENTAGE"]
-            if CONFIGURATION["LOGGING"]:
-                print(f"Delay decreased : {self.speed_percentage:.2f}%")
-            self.update_speed_label()
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Min delay reached")
+        self.speed_percentage = new_percentage
+        if CONFIGURATION["LOGGING"]:
+            print(f"Delay {'increased' if increase else 'decreased'} : {self.speed_percentage:.2f}%")
+        self.update_speed_label()
 
     def decrease_delay(self):
         # Same as key "1" in UI_reader/main.py, only does something on the reader screen
@@ -708,11 +791,14 @@ class GUI():
         self.current_word_index = 0
         if self.current_page_index > 0:
             self.current_page_index -= 1
+            # The page we left is no longer "before" the current one
+            self.words_before_current_page -= len(self.pages_list[self.current_page_index])
         else:
             if CONFIGURATION["LOGGING"]:
                 print("Page is already 0")
         self.update_word()
         self.update_book_progression_label()
+        self.update_book_words_label()
 
     def next_page(self):
         # Same as key "5" in UI_reader/main.py, only does something on the reader screen
@@ -723,12 +809,15 @@ class GUI():
         self.cancel_word_update()
         self.current_word_index = 0
         if self.current_page_index < len(self.pages_list) - 1:
+            # The page we leave is now "before" the current one
+            self.words_before_current_page += len(self.pages_list[self.current_page_index])
             self.current_page_index += 1
         else:
             if CONFIGURATION["LOGGING"]:
                 print("Page is max")
         self.update_word()
         self.update_book_progression_label()
+        self.update_book_words_label()
 
     def jump_words_back(self):
         # Same as key "7" in UI_reader/main.py, only does something on the reader screen
@@ -879,6 +968,28 @@ class GUI():
         else:
             self.select_previous()
 
+    def right_action(self):
+        # TODO switch from percentage to absolute and vice versa
+        pass
+
+    def left_action(self):
+        # Runs in the UI thread: hide all the progress bars of the reader, or show them again if hidden
+        self.toggle_progress_bars()
+
+    def toggle_progress_bars(self):
+        # Only does something on the reader screen (the other screens have no progress bars)
+        if self.current_screen != self.create_reader:
+            return
+        self.progress_bars_visible = not self.progress_bars_visible
+        if CONFIGURATION["LOGGING"]:
+            print("Progress bars shown" if self.progress_bars_visible else "Progress bars hidden")
+        # Redraw the 5 bars: each one is hidden or placed back with its current value
+        self.update_page_progression_label()
+        self.update_book_progression_label()
+        self.update_book_words_label()
+        self.update_battery_label()
+        self.update_speed_label()
+
     def right_down_action(self):
         # Runs in the UI thread: increase the delay while reading, otherwise navigate the menu
         if self.current_screen == self.create_reader:
@@ -901,6 +1012,16 @@ class GUI():
             print("right down button pressed")
         self.run_in_ui(self.right_down_action)
 
+    def right_btn(self):
+        if CONFIGURATION["LOGGING"]:
+            print("right button pressed")
+        self.run_in_ui(self.right_action)
+
+    def left_btn(self):
+        if CONFIGURATION["LOGGING"]:
+            print("left button pressed")
+        self.run_in_ui(self.left_action)
+
 
 # Build the window first, register the button listeners, THEN start the tkinter loop
 # (mainloop blocks, so anything after it only runs once the window is closed)
@@ -914,6 +1035,7 @@ if sys.platform.startswith('win'):
 
     # Register the callback functions for specific keys
 
+    keyboard.on_press_key('e', lambda e: main_GUI.left_btn() if e.name == 'e' else None)
     keyboard.on_press_key('a', lambda e: main_GUI.top_left_btn() if e.name == 'a' else None)
 
     keyboard.on_press_key('z', lambda e: main_GUI.left_top_btn() if e.name == 'z' else None)
@@ -921,6 +1043,7 @@ if sys.platform.startswith('win'):
     keyboard.on_press_key('d', lambda e: main_GUI.left_right_btn() if e.name == 'd' else None)
     keyboard.on_press_key('s', lambda e: main_GUI.left_down_btn() if e.name == 's' else None)
 
+    keyboard.on_press_key('u', lambda e: main_GUI.right_btn() if e.name == 'u' else None)
     keyboard.on_press_key('o', lambda e: main_GUI.top_right_btn() if e.name == 'o' else None)
 
     keyboard.on_press_key('i', lambda e: main_GUI.right_top_btn() if e.name == 'i' else None)
@@ -935,11 +1058,12 @@ elif sys.platform.startswith('linux'):
 
     # Define the GPIO pins used for input buttons
     # button_pins = [16, 5, 13, 6, 26, 19, 21, 20, 15, 12, 14, 23]
-    button_pins = [19, 5, 16, 13, 6, 26, 15, 12, 21, 20]
+    # 23 = left button (hide / show the progress bars)
+    button_pins = [19, 5, 16, 13, 6, 26, 15, 12, 21, 20, 23]
 
 
     # TODO add pins 14 and 23, they should switch between progression of book and page to percentage  / absolute value
-
+    # 14R 23L
     # Define the event function that runs when any button is pressed
     def on_button_pressed(button):
         current_pin = str(button.pin)  # todo
@@ -983,6 +1107,14 @@ elif sys.platform.startswith('linux'):
             if CONFIGURATION["LOGGING"]:
                 print("Pin 20 pressed")
             main_GUI.right_down_btn()
+        elif current_pin == "GPIO14":
+            if CONFIGURATION["LOGGING"]:
+                print("Pin 14 pressed")
+            main_GUI.right_btn()
+        elif current_pin == "GPIO23":
+            if CONFIGURATION["LOGGING"]:
+                print("Pin 23 pressed")
+            main_GUI.left_btn()
         else:
             if CONFIGURATION["LOGGING"]:
                 print("Not found pin")
