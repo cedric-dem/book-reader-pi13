@@ -423,6 +423,8 @@ class GUI():
                 item.configure(bg=self.theme["SURFACE_COLOR"],
                                fg=self.theme["ACCENT_COLOR"],
                                font=("Helvetica", 11))
+            if hasattr(item, "full_text"):
+                self.fit_item_text(item)  # bold and regular fonts don't have the same width
 
     def update_visible_items(self):
         # Move the visible window so the selected entry is always on screen
@@ -536,23 +538,28 @@ class GUI():
             return
 
         self.visible_item_count = CONFIGURATION["BOOKS_VISIBLE_AT_ONCE"]
-        # Longer book names are cut with "..." so they fill the whole width of the entry
-        # (measured with the bold font of the selected entry, the widest of the two)
-        bold_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
         text_padding = 6  # blank space between the left edge of the entry and the book name
-        available_width = int(self.screen_width() * 0.90) - 2 * text_padding - 4  # minus padding and border
         for book in books:
             name = os.path.splitext(book)[0]  # hide the ".epub" extension
-            name = self.fit_text(name, bold_font, available_width)
             # default argument so each entry keeps its own book (not the last one of the loop)
             item = self.make_menu_item(name, lambda book=book: self.read_book(book), pack=False)
-            item.configure(anchor="w", padx=text_padding)  # book names aligned left in their entry
+            # book names aligned left in their entry, no border eating into the width
+            item.configure(anchor="w", padx=text_padding, borderwidth=0, highlightthickness=0)
+            # Longer book names are cut with "..." so they fill the whole width of the entry.
+            # Fitted to the real size of the entry each time it is drawn or resized
+            # (e.g. fullscreen toggle), and again when its font changes (see update_highlight)
+            item.full_text = name
+            item.bind("<Configure>", lambda event, item=item: self.fit_item_text(item))
 
-    def screen_width(self):
-        # Width of the window in pixels: the whole screen in fullscreen, else the RESOLUTION width
-        if CONFIGURATION["FULLSCREEN_ON_STARTUP"]:
-            return self.root.winfo_screenwidth()
-        return int(CONFIGURATION["RESOLUTION"].split("x")[0])
+    def fit_item_text(self, item):
+        # Cut the full text of a menu entry so it fills the entry's current width with its current font
+        width = item.winfo_width()
+        if width <= 1:
+            return  # not drawn yet, <Configure> will call again once it is
+        padding = int(item.cget("padx")) + int(item.cget("borderwidth")) + int(item.cget("highlightthickness"))
+        available_width = width - 2 * padding
+        font = tkfont.Font(root=self.root, font=item.cget("font"))
+        item.configure(text=self.fit_text(item.full_text, font, available_width))
 
     def fit_text(self, text, font, max_width):
         # Keep the text as is if it fits, else cut it as little as possible and end it with "..."
