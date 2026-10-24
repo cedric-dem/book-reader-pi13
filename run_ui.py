@@ -788,105 +788,6 @@ class GUI():
             print(f"Delay {'increased' if increase else 'decreased'} : {self.speed_percentage:.2f}%")
         self.update_speed_label()
 
-    def decrease_delay(self):
-        # Same as key "1" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        self.update_speed(increase=False)
-
-    def increase_delay(self):
-        # Same as key "2" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        self.update_speed(increase=True)
-
-    def previous_page(self):
-        # Same as key "4" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        if CONFIGURATION["LOGGING"]:
-            print("Previous page")
-        self.cancel_word_update()
-        self.current_word_index = 0
-        if self.current_page_index > 0:
-            self.current_page_index -= 1
-            # The page we left is no longer "before" the current one
-            self.words_before_current_page -= len(self.pages_list[self.current_page_index])
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Page is already 0")
-        self.update_word()
-        self.update_book_progression_label()
-        self.update_book_words_label()
-
-    def next_page(self):
-        # Same as key "5" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        if CONFIGURATION["LOGGING"]:
-            print("Next page")
-        self.cancel_word_update()
-        self.current_word_index = 0
-        if self.current_page_index < len(self.pages_list) - 1:
-            # The page we leave is now "before" the current one
-            self.words_before_current_page += len(self.pages_list[self.current_page_index])
-            self.current_page_index += 1
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Page is max")
-        self.update_word()
-        self.update_book_progression_label()
-        self.update_book_words_label()
-
-    def jump_words_back(self):
-        # Same as key "7" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        jump = CONFIGURATION["JUMP_WORDS_QTY"]
-        if self.current_word_index > jump:
-            self.current_word_index -= jump
-            if CONFIGURATION["LOGGING"]:
-                print("Go back " + str(jump) + " words, now at ", self.current_word_index)
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Too early on the page (word", str(self.current_word_index), ") to jump", jump,
-                      " words back")
-
-    def jump_words_forward(self):
-        # Same as key "8" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        jump = CONFIGURATION["JUMP_WORDS_QTY"]
-        if self.current_word_index + jump < len(self.pages_list[self.current_page_index]):
-            self.current_word_index += jump
-            if CONFIGURATION["LOGGING"]:
-                print("Jump " + str(jump) + " words, now at ", self.current_word_index)
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Too late on the page (word", str(self.current_word_index), ") to jump", jump,
-                      " words forward")
-
-    def toggle_pause(self):
-        # Same as key "0" in UI_reader/main.py, only does something on the reader screen
-        if self.current_screen != self.create_reader:
-            return
-        self.is_paused = not self.is_paused
-        if self.is_paused:
-            self.cancel_word_update()
-            if CONFIGURATION["LOGGING"]:
-                print("Pause")
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Resume")
-            self.update_word()
-
-    def right_right_action(self):
-        # Runs in the UI thread: jump forward while reading, validate the selection in the menus
-        if self.current_screen == self.create_reader:
-            self.jump_words_forward()
-        else:
-            self.validate_selection()
-
     # --- Options menu ---
     def create_options_menu(self):
         # Sizes are percentages of the whole screen: no padding around this menu
@@ -926,11 +827,11 @@ class GUI():
         # Rebuild the current screen so the new colors are applied, keep the highlighted entry
         self.show_screen(self.current_screen, keep_selection=True)
 
-    def back_to_main_menu(self):
-        self.show_screen(self.create_main_menu)
-
-    # --- Physical buttons (called from the keyboard / GPIO threads) ---
+    # --- Physical buttons ---
+    # Each function is run in the UI thread: the keyboard / GPIO listeners (other threads)
+    # push it in the queue with run_in_ui, the main loop executes it.
     def top_left_btn(self):
+        # Toggle fullscreen
         if CONFIGURATION["LOGGING"]:
             print("Top left button pressed")
         is_full = bool(self.root.attributes("-fullscreen"))  # could be defined in nit
@@ -941,62 +842,68 @@ class GUI():
             print("left top button pressed")
 
     def left_left_btn(self):
+        # Same as key "4" in UI_reader/main.py: previous page, only on the reader screen
         if CONFIGURATION["LOGGING"]:
             print("left left button pressed")
-        self.run_in_ui(self.previous_page)
+        if self.current_screen != self.create_reader:
+            return
+        if CONFIGURATION["LOGGING"]:
+            print("Previous page")
+        self.cancel_word_update()
+        self.current_word_index = 0
+        if self.current_page_index > 0:
+            self.current_page_index -= 1
+            # The page we left is no longer "before" the current one
+            self.words_before_current_page -= len(self.pages_list[self.current_page_index])
+        else:
+            if CONFIGURATION["LOGGING"]:
+                print("Page is already 0")
+        self.update_word()
+        self.update_book_progression_label()
+        self.update_book_words_label()
 
     def left_right_btn(self):
+        # Same as key "5" in UI_reader/main.py: next page, only on the reader screen
         if CONFIGURATION["LOGGING"]:
             print("left right button pressed")
-        self.run_in_ui(self.next_page)
+        if self.current_screen != self.create_reader:
+            return
+        if CONFIGURATION["LOGGING"]:
+            print("Next page")
+        self.cancel_word_update()
+        self.current_word_index = 0
+        if self.current_page_index < len(self.pages_list) - 1:
+            # The page we leave is now "before" the current one
+            self.words_before_current_page += len(self.pages_list[self.current_page_index])
+            self.current_page_index += 1
+        else:
+            if CONFIGURATION["LOGGING"]:
+                print("Page is max")
+        self.update_word()
+        self.update_book_progression_label()
+        self.update_book_words_label()
 
     def left_down_btn(self):
+        # Same as key "0" in UI_reader/main.py: pause / resume, only on the reader screen
         if CONFIGURATION["LOGGING"]:
             print("left down button pressed")
-        self.run_in_ui(self.toggle_pause)
-
-    def top_right_btn(self):
-        if CONFIGURATION["LOGGING"]:
-            print("top right button pressed")
-        self.run_in_ui(self.go_back)
-
-    def go_back(self):
-        # Runs in the UI thread: depends on the screen currently displayed
-        if self.current_screen in (self.create_books_list, self.create_options_menu):
-            self.back_to_main_menu()
-        elif self.current_screen == self.create_reader:
-            self.back_to_books_list()
-
-    def back_to_books_list(self):
-        # Same as key "9" in UI_reader/main.py: save the progression, then back to the book selection
-        save_current_state(self.current_book, self.current_page_index, self.current_word_index)
-        self.show_screen(self.create_books_list)
-        if CONFIGURATION["LOGGING"]:
-            print("Back to books list")
-
-    def right_top_btn(self):
-        if CONFIGURATION["LOGGING"]:
-            print("right top button pressed")
-        self.run_in_ui(self.right_top_action)
-        # TODO enable/disable voice reading using speaker
-
-    def right_top_action(self):
-        # Runs in the UI thread: decrease the delay while reading, otherwise navigate the menu
-        if self.current_screen == self.create_reader:
-            self.decrease_delay()
+        if self.current_screen != self.create_reader:
+            return
+        self.is_paused = not self.is_paused
+        if self.is_paused:
+            self.cancel_word_update()
+            if CONFIGURATION["LOGGING"]:
+                print("Pause")
         else:
-            self.select_previous()
+            if CONFIGURATION["LOGGING"]:
+                print("Resume")
+            self.update_word()
 
-    def right_action(self):
-        # TODO switch from percentage to absolute and vice versa
-        pass
-
-    def left_action(self):
-        # Runs in the UI thread: hide all the progress bars of the reader, or show them again if hidden
-        self.toggle_progress_bars()
-
-    def toggle_progress_bars(self):
-        # Only does something on the reader screen (the other screens have no progress bars)
+    def left_btn(self):
+        # Hide all the progress bars of the reader, or show them again if hidden.
+        # Only on the reader screen (the other screens have no progress bars)
+        if CONFIGURATION["LOGGING"]:
+            print("left button pressed")
         if self.current_screen != self.create_reader:
             return
         self.progress_bars_visible = not self.progress_bars_visible
@@ -1009,37 +916,75 @@ class GUI():
         self.update_battery_label()
         self.update_speed_label()
 
-    def right_down_action(self):
-        # Runs in the UI thread: increase the delay while reading, otherwise navigate the menu
+    def top_right_btn(self):
+        # Go back: depends on the screen currently displayed
+        if CONFIGURATION["LOGGING"]:
+            print("top right button pressed")
+        if self.current_screen in (self.create_books_list, self.create_options_menu):
+            self.show_screen(self.create_main_menu)
+        elif self.current_screen == self.create_reader:
+            # Same as key "9" in UI_reader/main.py: save the progression, then back to the book selection
+            save_current_state(self.current_book, self.current_page_index, self.current_word_index)
+            self.show_screen(self.create_books_list)
+            if CONFIGURATION["LOGGING"]:
+                print("Back to books list")
+
+    def right_top_btn(self):
+        # Same as key "1" in UI_reader/main.py while reading (decrease the delay), otherwise navigate the menu
+        if CONFIGURATION["LOGGING"]:
+            print("right top button pressed")
+        # TODO enable/disable voice reading using speaker
         if self.current_screen == self.create_reader:
-            self.increase_delay()
+            self.update_speed(increase=False)
+        else:
+            self.select_previous()
+
+    def right_down_btn(self):
+        # Same as key "2" in UI_reader/main.py while reading (increase the delay), otherwise navigate the menu
+        if CONFIGURATION["LOGGING"]:
+            print("right down button pressed")
+        if self.current_screen == self.create_reader:
+            self.update_speed(increase=True)
         else:
             self.select_next()
 
     def right_left_btn(self):
+        # Same as key "7" in UI_reader/main.py: jump words back, only on the reader screen
         if CONFIGURATION["LOGGING"]:
             print("right left button pressed")
-        self.run_in_ui(self.jump_words_back)
+        if self.current_screen != self.create_reader:
+            return
+        jump = CONFIGURATION["JUMP_WORDS_QTY"]
+        if self.current_word_index > jump:
+            self.current_word_index -= jump
+            if CONFIGURATION["LOGGING"]:
+                print("Go back " + str(jump) + " words, now at ", self.current_word_index)
+        else:
+            if CONFIGURATION["LOGGING"]:
+                print("Too early on the page (word", str(self.current_word_index), ") to jump", jump,
+                      " words back")
 
     def right_right_btn(self):
+        # Same as key "8" in UI_reader/main.py while reading (jump words forward), otherwise validate the selection
         if CONFIGURATION["LOGGING"]:
             print("right right button pressed")
-        self.run_in_ui(self.right_right_action)
-
-    def right_down_btn(self):
-        if CONFIGURATION["LOGGING"]:
-            print("right down button pressed")
-        self.run_in_ui(self.right_down_action)
+        if self.current_screen != self.create_reader:
+            self.validate_selection()
+            return
+        jump = CONFIGURATION["JUMP_WORDS_QTY"]
+        if self.current_word_index + jump < len(self.pages_list[self.current_page_index]):
+            self.current_word_index += jump
+            if CONFIGURATION["LOGGING"]:
+                print("Jump " + str(jump) + " words, now at ", self.current_word_index)
+        else:
+            if CONFIGURATION["LOGGING"]:
+                print("Too late on the page (word", str(self.current_word_index), ") to jump", jump,
+                      " words forward")
 
     def right_btn(self):
         if CONFIGURATION["LOGGING"]:
             print("right button pressed")
-        self.run_in_ui(self.right_action)
-
-    def left_btn(self):
-        if CONFIGURATION["LOGGING"]:
-            print("left button pressed")
-        self.run_in_ui(self.left_action)
+        # TODO switch from percentage to absolute and vice versa
 
 
 # Build the window first, register the button listeners, THEN start the tkinter loop
@@ -1052,92 +997,67 @@ if sys.platform.startswith('win'):
         print("Running on Windows")
     import keyboard
 
-    # Register the callback functions for specific keys
+    # Key -> button function, run in the UI thread when the key is pressed
+    key_buttons = {
+        'e': main_GUI.left_btn,
+        'a': main_GUI.top_left_btn,
 
-    keyboard.on_press_key('e', lambda e: main_GUI.left_btn() if e.name == 'e' else None)
-    keyboard.on_press_key('a', lambda e: main_GUI.top_left_btn() if e.name == 'a' else None)
+        'z': main_GUI.left_top_btn,
+        'q': main_GUI.left_left_btn,
+        'd': main_GUI.left_right_btn,
+        's': main_GUI.left_down_btn,
 
-    keyboard.on_press_key('z', lambda e: main_GUI.left_top_btn() if e.name == 'z' else None)
-    keyboard.on_press_key('q', lambda e: main_GUI.left_left_btn() if e.name == 'q' else None)
-    keyboard.on_press_key('d', lambda e: main_GUI.left_right_btn() if e.name == 'd' else None)
-    keyboard.on_press_key('s', lambda e: main_GUI.left_down_btn() if e.name == 's' else None)
+        'u': main_GUI.right_btn,
+        'o': main_GUI.top_right_btn,
 
-    keyboard.on_press_key('u', lambda e: main_GUI.right_btn() if e.name == 'u' else None)
-    keyboard.on_press_key('o', lambda e: main_GUI.top_right_btn() if e.name == 'o' else None)
-
-    keyboard.on_press_key('i', lambda e: main_GUI.right_top_btn() if e.name == 'i' else None)
-    keyboard.on_press_key('l', lambda e: main_GUI.right_right_btn() if e.name == 'l' else None)
-    keyboard.on_press_key('j', lambda e: main_GUI.right_left_btn() if e.name == 'j' else None)
-    keyboard.on_press_key('k', lambda e: main_GUI.right_down_btn() if e.name == 'k' else None)
+        'i': main_GUI.right_top_btn,
+        'l': main_GUI.right_right_btn,
+        'j': main_GUI.right_left_btn,
+        'k': main_GUI.right_down_btn,
+    }
+    for key, button_function in key_buttons.items():
+        # default arguments so each key keeps its own function (not the last one of the loop)
+        keyboard.on_press_key(key, lambda e, key=key, button_function=button_function:
+                              main_GUI.run_in_ui(button_function) if e.name == key else None)
 
 elif sys.platform.startswith('linux'):
     if CONFIGURATION["LOGGING"]:
         print("Running on Linux")
     from gpiozero import Button
 
-    # Define the GPIO pins used for input buttons
-    button_pins = [5, 6, 12, 13, 14, 15, 16, 19, 20, 21, 23, 26]
+    # GPIO pin -> button function, run in the UI thread when the button is pressed
+    pin_buttons = {
+        19: main_GUI.top_left_btn,
+        5: main_GUI.left_top_btn,
+        16: main_GUI.left_left_btn,
+        13: main_GUI.left_right_btn,
+        6: main_GUI.left_down_btn,
+        26: main_GUI.top_right_btn,
+        15: main_GUI.right_top_btn,
+        12: main_GUI.right_left_btn,
+        21: main_GUI.right_right_btn,
+        20: main_GUI.right_down_btn,
+        14: main_GUI.right_btn,
+        23: main_GUI.left_btn,
+    }
 
 
     # Define the event function that runs when any button is pressed
     def on_button_pressed(button):
-        current_pin = str(button.pin)  # todo
-        if current_pin == "GPIO19":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 19 pressed")
-            main_GUI.top_left_btn()
-        elif current_pin == "GPIO5":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 5 pressed")
-            main_GUI.left_top_btn()
-        elif current_pin == "GPIO16":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 16 pressed")
-            main_GUI.left_left_btn()
-        elif current_pin == "GPIO13":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 13 pressed")
-            main_GUI.left_right_btn()
-        elif current_pin == "GPIO6":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 6 pressed")
-            main_GUI.left_down_btn()
-        elif current_pin == "GPIO26":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 26 pressed")
-            main_GUI.top_right_btn()
-        elif current_pin == "GPIO15":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 15 pressed")
-            main_GUI.right_top_btn()
-        elif current_pin == "GPIO12":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 12 pressed")
-            main_GUI.right_left_btn()
-        elif current_pin == "GPIO21":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 21 pressed")
-            main_GUI.right_right_btn()
-        elif current_pin == "GPIO20":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 20 pressed")
-            main_GUI.right_down_btn()
-        elif current_pin == "GPIO14":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 14 pressed")
-            main_GUI.right_btn()
-        elif current_pin == "GPIO23":
-            if CONFIGURATION["LOGGING"]:
-                print("Pin 23 pressed")
-            main_GUI.left_btn()
-        else:
-            if CONFIGURATION["LOGGING"]:
-                print("Not found pin")
+        current_pin = str(button.pin)  # e.g. "GPIO19"
+        for pin, button_function in pin_buttons.items():
+            if current_pin == f"GPIO{pin}":
+                if CONFIGURATION["LOGGING"]:
+                    print(f"Pin {pin} pressed")
+                main_GUI.run_in_ui(button_function)
+                return
+        if CONFIGURATION["LOGGING"]:
+            print("Not found pin")
 
 
     # Create Button instances and assign the event handler
     buttons = []
-    for pin in button_pins:
+    for pin in pin_buttons:
         btn = Button(pin, pull_up=True)
         # Assign the callback function (gpiozero automatically passes the button object)
         btn.when_pressed = on_button_pressed
