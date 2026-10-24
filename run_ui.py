@@ -43,44 +43,44 @@ CONFIGURATION = {
 # Colors used by every screen, one set per theme (chosen in the options menu, in this order)
 THEMES = {
     "dark": {
-        "BACKGROUND_COLOR": "#0F0F0F",
-        "BUTTON_COLOR": "#2A2A2A",
-        "BUTTON_ACTIVE_COLOR": "#444444",
-        "TEXT_COLOR": "#FFFFFF",
-        "HIGHLIGHT_COLOR": "#FFFFFF",  # background of the selected menu entry
-        "HIGHLIGHT_TEXT_COLOR": "#0F0F0F",  # text of the selected menu entry
+        "BASE_COLOR": "#0F0F0F",  # background of every frame + text of the active elements (selected menu entry, filled progress bar)
+        "SURFACE_COLOR": "#2A2A2A",  # background of the menu entries + empty part of the progress bars
+        "ACCENT_COLOR": "#FFFFFF",  # all regular text + background of the active elements (selected menu entry, filled progress bar)
     },
     "light": {
-        "BACKGROUND_COLOR": "#F2F2F2",
-        "BUTTON_COLOR": "#D9D9D9",
-        "BUTTON_ACTIVE_COLOR": "#BFBFBF",
-        "TEXT_COLOR": "#111111",
-        "HIGHLIGHT_COLOR": "#111111",
-        "HIGHLIGHT_TEXT_COLOR": "#F2F2F2",
+        "BASE_COLOR": "#F2F2F2",
+        "SURFACE_COLOR": "#D9D9D9",
+        "ACCENT_COLOR": "#111111",
     },
     "matrix": {  # green text on a black background
-        "BACKGROUND_COLOR": "#000000",
-        "BUTTON_COLOR": "#0A1F0A",
-        "BUTTON_ACTIVE_COLOR": "#143D14",
-        "TEXT_COLOR": "#00FF41",
-        "HIGHLIGHT_COLOR": "#00FF41",
-        "HIGHLIGHT_TEXT_COLOR": "#000000",
+        "BASE_COLOR": "#000000",
+        "SURFACE_COLOR": "#0A1F0A",
+        "ACCENT_COLOR": "#00FF41",
     },
-    "pastel": {  # soft lavender and pink tones with dark plum text
-        "BACKGROUND_COLOR": "#FDF6F0",
-        "BUTTON_COLOR": "#E6DDF5",
-        "BUTTON_ACTIVE_COLOR": "#D4C4EE",
-        "TEXT_COLOR": "#4A3B5C",
-        "HIGHLIGHT_COLOR": "#F7C6D9",
-        "HIGHLIGHT_TEXT_COLOR": "#4A3B5C",
+    "pastel": {  # blush-pink background, lavender buttons and deep plum text
+        "BASE_COLOR": "#FBF5F8",
+        "SURFACE_COLOR": "#E4D8F2",
+        "ACCENT_COLOR": "#5B3E70",
     },
     "sepia": {  # warm aged-paper tones with dark brown ink, easy on the eyes for long reading
-        "BACKGROUND_COLOR": "#F4ECD8",
-        "BUTTON_COLOR": "#E6D7B8",
-        "BUTTON_ACTIVE_COLOR": "#D8C49C",
-        "TEXT_COLOR": "#5B4636",
-        "HIGHLIGHT_COLOR": "#8B5E3C",
-        "HIGHLIGHT_TEXT_COLOR": "#F4ECD8",
+        "BASE_COLOR": "#F5EBD7",
+        "SURFACE_COLOR": "#E4CFA6",
+        "ACCENT_COLOR": "#4A3221",
+    },
+    "red": {  # red text on a black background, keeps night vision for reading in the dark
+        "BASE_COLOR": "#000000",
+        "SURFACE_COLOR": "#260707",
+        "ACCENT_COLOR": "#FF3B30",
+    },
+    "blue": {  # blue text on a black background
+        "BASE_COLOR": "#000000",
+        "SURFACE_COLOR": "#08142B",
+        "ACCENT_COLOR": "#4DA3FF",
+    },
+    "amber": {  # amber text on a black background, like an old phosphor terminal
+        "BASE_COLOR": "#0A0700",
+        "SURFACE_COLOR": "#2B1D00",
+        "ACCENT_COLOR": "#FFB000",
     },
 }
 
@@ -110,6 +110,10 @@ TRANSLATIONS = {
         "theme_light": "Light",
         "theme_matrix": "Matrix",
         "theme_pastel": "Pastel",
+        "theme_sepia": "Sepia",
+        "theme_red": "Red",
+        "theme_blue": "Blue",
+        "theme_amber": "Amber",
     },
     "fr": {
         "language_name": "Français",
@@ -134,6 +138,10 @@ TRANSLATIONS = {
         "theme_light": "Clair",
         "theme_matrix": "Matrix",
         "theme_pastel": "Pastel",
+        "theme_sepia": "Sépia",
+        "theme_red": "Rouge",
+        "theme_blue": "Bleu",
+        "theme_amber": "Ambre",
     },
     "es": {
         "language_name": "Español",
@@ -158,6 +166,10 @@ TRANSLATIONS = {
         "theme_light": "Claro",
         "theme_matrix": "Matrix",
         "theme_pastel": "Pastel",
+        "theme_sepia": "Sepia",
+        "theme_red": "Rojo",
+        "theme_blue": "Azul",
+        "theme_amber": "Ámbar",
     },
 }
 
@@ -357,8 +369,8 @@ class GUI():
         self.cancel_word_update()
         if self.screen_frame is not None:
             self.screen_frame.destroy()
-        self.root.configure(bg=self.theme["BACKGROUND_COLOR"])
-        self.screen_frame = tk.Frame(self.root, bg=self.theme["BACKGROUND_COLOR"])
+        self.root.configure(bg=self.theme["BASE_COLOR"])
+        self.screen_frame = tk.Frame(self.root, bg=self.theme["BASE_COLOR"])
         self.screen_frame.pack(fill="both", expand=True, padx=10, pady=10)
         self.current_screen = build_function
         self.menu_items = []
@@ -374,7 +386,7 @@ class GUI():
 
     def make_title(self, text, pack=True):
         title = tk.Label(self.screen_frame, text=text,
-                         bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
+                         bg=self.theme["BASE_COLOR"], fg=self.theme["ACCENT_COLOR"],
                          font=("Helvetica", 14, "bold"))
         if pack:
             title.pack(pady=(0, 8))
@@ -383,7 +395,7 @@ class GUI():
     def make_menu_item(self, text, callback, pack=True):
         # A Label, not a Button: entries can't be clicked, only selected with the physical buttons
         item = tk.Label(self.screen_frame, text=text,
-                        bg=self.theme["BUTTON_COLOR"], fg=self.theme["TEXT_COLOR"],
+                        bg=self.theme["SURFACE_COLOR"], fg=self.theme["ACCENT_COLOR"],
                         font=("Helvetica", 11))
         if pack:
             item.pack(fill="x", expand=True, pady=3)
@@ -404,12 +416,12 @@ class GUI():
             self.update_visible_items()
         for index, (item, _) in enumerate(self.menu_items):
             if index == self.selected_index:
-                item.configure(bg=self.theme["HIGHLIGHT_COLOR"],
-                               fg=self.theme["HIGHLIGHT_TEXT_COLOR"],
+                item.configure(bg=self.theme["ACCENT_COLOR"],
+                               fg=self.theme["BASE_COLOR"],
                                font=("Helvetica", 11, "bold"))
             else:
-                item.configure(bg=self.theme["BUTTON_COLOR"],
-                               fg=self.theme["TEXT_COLOR"],
+                item.configure(bg=self.theme["SURFACE_COLOR"],
+                               fg=self.theme["ACCENT_COLOR"],
                                font=("Helvetica", 11))
 
     def update_visible_items(self):
@@ -518,7 +530,7 @@ class GUI():
         if not books:
             # Plain text, not a menu entry: nothing to select, top right button goes back
             no_books_label = tk.Label(self.screen_frame, text=self.tr("no_books_found"),
-                                      bg=self.theme["BACKGROUND_COLOR"], fg=self.theme["TEXT_COLOR"],
+                                      bg=self.theme["BASE_COLOR"], fg=self.theme["ACCENT_COLOR"],
                                       font=("Helvetica", 11))
             self.place_in_rows([no_books_label], first_row=1)
             return
@@ -579,12 +591,12 @@ class GUI():
     # --- Reader (word by word) ---
     def create_reader(self):
         self.is_paused = False
-        background = self.theme["BACKGROUND_COLOR"]
-        text_color = self.theme["TEXT_COLOR"]
+        base_color = self.theme["BASE_COLOR"]
+        accent_color = self.theme["ACCENT_COLOR"]
 
         self.current_word_label = tk.Label(self.screen_frame, text="",
                                            font=("Helvetica", CONFIGURATION["WORD_FONT_SIZE"]),
-                                           anchor="center", justify="center", bg=background, fg=text_color)
+                                           anchor="center", justify="center", bg=base_color, fg=accent_color)
         # The previous screen (and its progress bars) was destroyed by show_screen
         self.progress_bars = {}
 
@@ -612,14 +624,14 @@ class GUI():
             # Empty part: the menu entry colors
             background = tk.Label(self.screen_frame, text=text, font=info_font,
                                   anchor="w", justify="left", padx=8, borderwidth=0,
-                                  bg=self.theme["BUTTON_COLOR"], fg=self.theme["TEXT_COLOR"])
+                                  bg=self.theme["SURFACE_COLOR"], fg=self.theme["ACCENT_COLOR"])
             # Filled part: the selected menu entry colors, drawn over the empty part. It has the
             # same text at the same place, cut where the bar ends, so the text stays readable on both.
             # It is a sibling of the empty part (not a child): a widget placed inside a Label is not
             # redrawn reliably when that Label's text changes (e.g. the delay going from 100% to 90%)
             filled = tk.Label(self.screen_frame, text=text, font=info_font,
                               anchor="w", justify="left", padx=8, borderwidth=0,
-                              bg=self.theme["HIGHLIGHT_COLOR"], fg=self.theme["HIGHLIGHT_TEXT_COLOR"])
+                              bg=self.theme["ACCENT_COLOR"], fg=self.theme["BASE_COLOR"])
             bar = (background, filled)
             self.progress_bars[position] = bar
 
