@@ -106,7 +106,7 @@ TRANSLATIONS = {
         "book_words": "Book total words : {current} / {total}",
         "battery": "Battery : {level} %{note}",
         "battery_on_windows": "on Windows",
-        "battery_read_error": "could not read, error {code}",
+        "battery_read_error": "error {code}",
         "delay": "Delay : {percentage}%",
         "empty_book": "empty book",
         "empty_page": "empty page",
