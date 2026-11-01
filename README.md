@@ -27,7 +27,8 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Python 3.9+ with tkinter
 - On Windows (development): `pip install keyboard`
 - On Raspberry Pi (Linux): `gpiozero` (preinstalled on Raspberry Pi OS, otherwise `pip install gpiozero`)
-- For the battery level on the Pi (UPS hat, CW2015 chip, read directly by `run_ui.py`): I2C enabled (`sudo raspi-config` → Interface Options → I2C) and either `sudo apt install python3-smbus` or `pip install smbus2` (use the pip one inside a venv). Not needed on Windows. To watch the battery voltage, level and power adapter in a terminal: `python run_ui.py --battery`
+- For the battery level on the Pi (UPS hat with a CW2015 fuel gauge, read directly by `run_ui.py`): I2C enabled (`sudo raspi-config` → Interface Options → I2C) and either `sudo apt install python3-smbus` or `pip install smbus2` (use the pip one inside a venv). Not needed on Windows.
+- For the `--battery` terminal monitor only: `RPi.GPIO` (preinstalled on Raspberry Pi OS, otherwise `pip install RPi.GPIO`), used to read the power adapter pin.
 
 ## Usage
 
@@ -84,7 +85,9 @@ Jumps of 10 words stay inside the current chapter. Hiding the progress bars is k
 
 Each bar fills with the accent color as it progresses, and its text stays readable on both the filled and the empty part. Large numbers are grouped by three with spaces (`81 000`).
 
-"Pages" are the chapters of the EPUB (one per entry of the EPUB spine). The battery value is read from the UPS hat on the Pi every 30 seconds; on Windows it shows a mock 42 % "(on Windows)", and on the Pi it shows 42 % with the error in brackets until a read succeeds. At the end of a chapter the screen shows "finished page": press next chapter to go on.
+"Pages" are the chapters of the EPUB (one per entry of the EPUB spine). At the end of a chapter the screen shows "finished page": press next chapter to go on.
+
+The battery bar shows the real charge of the UPS hat, read every 30 seconds (see [Battery](#battery)).
 
 ## Configuration
 
@@ -109,7 +112,9 @@ All settings are in the `CONFIGURATION` dictionary at the top of `run_ui.py`:
 | `JUMP_WORDS_QTY`         | `10`         | Words skipped by the jump buttons                         |
 | `WORD_FONT_SIZE`         | `42`         | Font size of the current word                             |
 | `INFO_FONT_SIZE`         | `20`         | Font size of the progress bar texts                       |
-| `LOGGING`                | `False`      | Print what the program does to the console                |
+| `BATTERY_REFRESH_MS`     | `30000`      | How often the battery level is read (milliseconds)        |
+| `MOCK_BATTERY_LEVEL`     | `42`         | Level shown on Windows, and on the Pi until a read succeeds |
+| `LOGGING`                | `False`      | Print what the program does to the console (including failed battery reads) |
 
 Display time of a word:
 
@@ -122,6 +127,23 @@ Colors for the themes are in the `THEMES` dictionary, three per theme (`BASE_COL
 Every on-screen text is in the `TRANSLATIONS` dictionary, one entry per language (`en`, `fr`, `es`). To add a language, copy the `en` block under a new code and translate its values: it then appears in the options menu. A missing key falls back to English.
 
 Settings saved by older versions (with the `dark_mode` flag) are converted to the dark or light theme automatically.
+
+## Battery
+
+On the Pi, `run_ui.py` talks to the CW2015 fuel gauge of the UPS hat itself over I2C (bus 1, address `0x62`). No separate script is needed anymore.
+
+- The charge percentage is read every `BATTERY_REFRESH_MS` and clamped to 0–100 %.
+- Until the first successful read, the bar shows `MOCK_BATTERY_LEVEL` with the reason in brackets, e.g. `Battery : 42 % (error 121)` (121 = nothing answered on the I2C bus, usually hat missing or I2C disabled) or `(error ModuleNotFoundError)` (smbus not installed).
+- Once a real level has been read, a later failed read keeps showing the last real level.
+- On Windows the bar always shows the mock level with "(on Windows)".
+
+To check the hat from a terminal, run:
+
+```bash
+python run_ui.py --battery
+```
+
+It prints the voltage, the charge, "Battery FULL" / "Battery LOW" (below 5 %) and whether the power adapter is plugged in (GPIO 4) every 2 seconds, until Ctrl+C. It only works on the Pi.
 
 ## Raspberry Pi notes
 
@@ -144,6 +166,5 @@ book-reader-pi13/
 
 - Voice reading through a speaker (left top button)
 - Switch the progress texts between percentage and absolute values (right square button)
-- Real battery level
 - Go to the next chapter automatically at the end of a chapter
 - Save progress on exit and shutdown, not only when leaving a book
