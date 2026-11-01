@@ -104,7 +104,9 @@ TRANSLATIONS = {
         "page_progression": "This page progression : {current} / {total} words",
         "book_progression": "Book progression : {current} / {total} pages",
         "book_words": "Book total words : {current} / {total}",
-        "battery": "Battery : {level} %",
+        "battery": "Battery : {level} %{note}",
+        "battery_on_windows": "on Windows",
+        "battery_read_error": "could not read, error {code}",
         "delay": "Delay : {percentage}%",
         "empty_book": "empty book",
         "empty_page": "empty page",
@@ -132,7 +134,9 @@ TRANSLATIONS = {
         "page_progression": "Progression de la page : {current} / {total} mots",
         "book_progression": "Progression du livre : {current} / {total} pages",
         "book_words": "Mots du livre : {current} / {total}",
-        "battery": "Batterie : {level} %",
+        "battery": "Batterie : {level} %{note}",
+        "battery_on_windows": "sous Windows",
+        "battery_read_error": "lecture impossible, erreur {code}",
         "delay": "Délai : {percentage}%",
         "empty_book": "livre vide",
         "empty_page": "page vide",
@@ -160,7 +164,9 @@ TRANSLATIONS = {
         "page_progression": "Progreso de la página: {current} / {total} palabras",
         "book_progression": "Progreso del libro: {current} / {total} páginas",
         "book_words": "Palabras del libro: {current} / {total}",
-        "battery": "Batería: {level} %",
+        "battery": "Batería: {level} %{note}",
+        "battery_on_windows": "en Windows",
+        "battery_read_error": "lectura imposible, error {code}",
         "delay": "Retardo: {percentage}%",
         "empty_book": "libro vacío",
         "empty_page": "página vacía",
@@ -219,17 +225,21 @@ def read_epub_file(epub_file_path: str) -> list[list[str]]:
 
 
 def read_battery_level():
-    # Real level (0-100) from the UPS hat on Linux (see battery.py), mock level on Windows.
-    # Returns None if the battery could not be read (hat missing, I2C error...)
+    # Returns (level, error):
+    # - Linux, read OK: (real level 0-100 from the UPS hat, see battery.py, None)
+    # - Linux, read failed (hat missing, I2C error...): (None, error code, e.g. 121 or "ModuleNotFoundError")
+    # - Windows / other: (None, None), the mock level is shown
     if not sys.platform.startswith('linux'):
-        return CONFIGURATION["MOCK_BATTERY_LEVEL"]
+        return None, None
     try:
         import battery  # battery.py, next to this script (needs smbus, only on the Pi)
-        return battery.read_battery_level()
+        return battery.read_battery_level(), None
     except Exception as error:  # ImportError, OSError from the I2C bus...
         if CONFIGURATION["LOGGING"]:
             print(f"Battery read failed: {error}")
-        return None
+        # OS errors (e.g. I2C bus) have a number, other errors are named by their type
+        code = getattr(error, "errno", None) or type(error).__name__
+        return None, code
 
 
 def load_state_if_any():
@@ -344,6 +354,8 @@ class GUI():
         self.progress_bars_visible = True
         # Shown by the battery bar of the reader screen, read again every BATTERY_REFRESH_MS
         self.battery_level = CONFIGURATION["MOCK_BATTERY_LEVEL"]
+        self.battery_is_mock = True  # True until a real level has been read
+        self.battery_error = None  # error code of the last failed read, None if no read failed
         self.refresh_battery_level()
 
         self.show_screen(self.create_main_menu)
@@ -369,11 +381,13 @@ class GUI():
         # Read the battery, update the bar if the reader is displayed, then schedule the next read
         if self.is_closed:
             return
-        level = read_battery_level()
-        if level is not None:  # read failed: keep the last known level
+        level, self.battery_error = read_battery_level()
+        if level is not None:
             self.battery_level = level
-            if self.current_screen == self.create_reader:
-                self.update_battery_label()
+            self.battery_is_mock = False
+        # read failed: keep the last real level if there was one, else the mock level with its error
+        if self.current_screen == self.create_reader:
+            self.update_battery_label()
         self.root.after(CONFIGURATION["BATTERY_REFRESH_MS"], self.refresh_battery_level)
 
     # --- Theme / screen helpers ---
@@ -736,10 +750,18 @@ class GUI():
                                          total=format_number(self.total_book_words)),
                                  0.25)
 
+    def battery_note(self):
+        # Short explanation after the percentage when the mock level is shown, e.g. " (on Windows)"
+        if not self.battery_is_mock:
+            return ""
+        if self.battery_error is None:
+            return f" ({self.tr('battery_on_windows')})"
+        return f" ({self.tr('battery_read_error', code=self.battery_error)})"
+
     def update_battery_label(self):
         # Full bar = 100% battery
         self.create_progress_bar(self.battery_level / 100,
-                                 self.tr("battery", level=self.battery_level),
+                                 self.tr("battery", level=self.battery_level, note=self.battery_note()),
                                  0.77)
 
     def update_speed_label(self):
