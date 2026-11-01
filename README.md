@@ -27,6 +27,7 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Python 3.9+ with tkinter
 - On Windows (development): `pip install keyboard`
 - On Raspberry Pi (Linux): `gpiozero` (preinstalled on Raspberry Pi OS, otherwise `pip install gpiozero`)
+- For the battery level on the Pi (UPS hat, CW2015 chip read by `battery.py`): I2C enabled (`sudo raspi-config` → Interface Options → I2C) and either `sudo apt install python3-smbus` or `pip install smbus2` (use the pip one inside a venv)
 
 ## Usage
 
@@ -83,7 +84,7 @@ Jumps of 10 words stay inside the current chapter. Hiding the progress bars is k
 
 Each bar fills with the accent color as it progresses, and its text stays readable on both the filled and the empty part. Large numbers are grouped by three with spaces (`81 000`).
 
-"Pages" are the chapters of the EPUB (one per entry of the EPUB spine). The battery value is a placeholder for now. At the end of a chapter the screen shows "finished page": press next chapter to go on.
+"Pages" are the chapters of the EPUB (one per entry of the EPUB spine). The battery value is read from the UPS hat on the Pi every 30 seconds; on Windows it shows a mock 42 % "(on Windows)", and on the Pi it shows 42 % with the error in brackets until a read succeeds. At the end of a chapter the screen shows "finished page": press next chapter to go on.
 
 ## Configuration
 
