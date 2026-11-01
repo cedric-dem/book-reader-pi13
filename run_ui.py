@@ -3,8 +3,10 @@ import os
 import pickle
 import queue
 import re
+import struct
 import subprocess
 import sys
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 import xml.etree.ElementTree as ET
@@ -224,16 +226,58 @@ def read_epub_file(epub_file_path: str) -> list[list[str]]:
         return pages
 
 
+# --- Battery (Raspi UPS hat, CW2015 fuel gauge chip on the I2C bus) ---
+# Only used on Linux: smbus is imported on the first read, so Windows never needs it
+CW2015_ADDRESS = 0x62
+CW2015_REG_VCELL = 0x02
+CW2015_REG_SOC = 0x04
+CW2015_REG_MODE = 0x0A
+
+
+def open_battery_bus():
+    # Opens /dev/i2c-1 (port I2C1) and wakes up the CW2015 (quick-start fuel-gauge calculations)
+    try:
+        import smbus  # apt package python3-smbus
+    except ImportError:
+        import smbus2 as smbus  # pip install smbus2 (same API, works inside a venv)
+    bus = smbus.SMBus(1)
+    bus.write_word_data(CW2015_ADDRESS, CW2015_REG_MODE, 0x30)
+    return bus
+
+
+def read_cw2015_word(bus, register):
+    # The CW2015 sends its registers big-endian, read_word_data reads little-endian: swap the bytes
+    read = bus.read_word_data(CW2015_ADDRESS, register)
+    return struct.unpack("<H", struct.pack(">H", read))[0]
+
+
+def read_battery_voltage(bus):
+    # Battery voltage in volts, as a float
+    return read_cw2015_word(bus, CW2015_REG_VCELL) * 0.305 / 1000
+
+
+def read_battery_capacity(bus):
+    # Remaining battery capacity in percent, as a float
+    return read_cw2015_word(bus, CW2015_REG_SOC) / 256
+
+
+# Bus shared by read_battery_level, opened on the first call
+_battery_bus = None
+
+
 def read_battery_level():
     # Returns (level, error):
-    # - Linux, read OK: (real level 0-100 from the UPS hat, see battery.py, None)
+    # - Linux, read OK: (real level 0-100 from the UPS hat, None)
     # - Linux, read failed (hat missing, I2C error...): (None, error code, e.g. 121 or "ModuleNotFoundError")
     # - Windows / other: (None, None), the mock level is shown
+    global _battery_bus
     if not sys.platform.startswith('linux'):
         return None, None
     try:
-        import battery  # battery.py, next to this script (needs smbus, only on the Pi)
-        return battery.read_battery_level(), None
+        if _battery_bus is None:
+            _battery_bus = open_battery_bus()
+        level = max(0, min(100, int(round(read_battery_capacity(_battery_bus)))))
+        return level, None
     except Exception as error:  # ImportError, OSError from the I2C bus...
         if CONFIGURATION["LOGGING"]:
             print(f"Battery read failed: {error}")
@@ -1040,6 +1084,45 @@ class GUI():
             print("right button pressed")
         # TODO switch from percentage to absolute and vice versa
 
+
+def battery_monitor():
+    # Standalone battery monitoring loop (was "python battery.py"), run with: python run_ui.py --battery
+    # Linux / Pi only, stop it with Ctrl+C
+    if not sys.platform.startswith('linux'):
+        print("Battery monitoring only works on the Pi (Linux)")
+        return
+    import RPi.GPIO as GPIO
+
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(4, GPIO.IN)  # GPIO4 is used to detect whether an external power supply is inserted
+
+    print("Initialize the CW2015 ......")
+    bus = open_battery_bus()
+    try:
+        while True:
+            capacity = read_battery_capacity(bus)
+            print("++++++++++++++++++++")
+            print("Voltage:%5.2fV" % read_battery_voltage(bus))
+            print("Battery:%5i%%" % capacity)
+            if capacity == 100:
+                print("Battery FULL")
+            if capacity < 5:
+                print("Battery LOW")
+            # GPIO is high when power is plugged in
+            if GPIO.input(4) == GPIO.HIGH:
+                print("Power Adapter Plug In")
+            else:
+                print("Power Adapter Unplug")
+            print("++++++++++++++++++++")
+            time.sleep(2)
+    except KeyboardInterrupt:
+        pass
+
+
+if "--battery" in sys.argv:
+    battery_monitor()
+    sys.exit()
 
 # Build the window first, register the button listeners, THEN start the tkinter loop
 # (mainloop blocks, so anything after it only runs once the window is closed)

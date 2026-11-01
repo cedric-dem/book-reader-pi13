@@ -27,7 +27,7 @@ Books are shown one word at a time in the middle of the screen (RSVP-style speed
 - Python 3.9+ with tkinter
 - On Windows (development): `pip install keyboard`
 - On Raspberry Pi (Linux): `gpiozero` (preinstalled on Raspberry Pi OS, otherwise `pip install gpiozero`)
-- For the battery level on the Pi (UPS hat, CW2015 chip read by `battery.py`): I2C enabled (`sudo raspi-config` → Interface Options → I2C) and either `sudo apt install python3-smbus` or `pip install smbus2` (use the pip one inside a venv)
+- For the battery level on the Pi (UPS hat, CW2015 chip, read directly by `run_ui.py`): I2C enabled (`sudo raspi-config` → Interface Options → I2C) and either `sudo apt install python3-smbus` or `pip install smbus2` (use the pip one inside a venv). Not needed on Windows. To watch the battery voltage, level and power adapter in a terminal: `python run_ui.py --battery`
 
 ## Usage
 
