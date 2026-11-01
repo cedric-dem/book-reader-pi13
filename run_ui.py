@@ -173,6 +173,9 @@ TRANSLATIONS = {
     },
 }
 
+# How often the real battery level is re-read on Linux (in milliseconds)
+BATTERY_REFRESH_MS = 50_000
+
 
 def read_epub_file(epub_file_path: str) -> list[list[str]]:
     # Returns the book as a list of pages (one per chapter of the EPUB spine), each page a list of words
@@ -323,7 +326,9 @@ class GUI():
         # The left button (keyboard "e" / GPIO 23) hides or shows all the progress bars of the reader.
         # Kept while the app runs, so it stays the same when opening another book.
         self.progress_bars_visible = True
-        self.battery_level = 42  # placeholder until the battery is actually read
+        # Real battery level on Linux (Raspberry Pi UPS hat, see battery.py), mock value on Windows
+        self.battery_level = 42
+        self.refresh_battery_level()
 
         self.show_screen(self.create_main_menu)
         self.root.after(20, self.process_pending_actions)
@@ -703,6 +708,23 @@ class GUI():
                                  self.tr("book_words", current=format_number(current_words),
                                          total=format_number(self.total_book_words)),
                                  0.25)
+
+    def refresh_battery_level(self):
+        # On Linux, read the real battery percentage (battery.py) and re-read it every
+        # BATTERY_REFRESH_MS. On Windows (dev), keep the mock value of 42%.
+        if self.is_closed or not sys.platform.startswith('linux'):
+            return
+        try:
+            from battery import read_battery_level
+            self.battery_level = read_battery_level()
+            if CONFIGURATION["LOGGING"]:
+                print(f"Battery level: {self.battery_level} %")
+        except Exception as error:
+            # Keep the previous value if the UPS hat can't be read
+            print(f"Could not read the battery level: {error}")
+        if self.current_screen == self.create_reader:
+            self.update_battery_label()
+        self.root.after(BATTERY_REFRESH_MS, self.refresh_battery_level)
 
     def update_battery_label(self):
         # Full bar = 100% battery
