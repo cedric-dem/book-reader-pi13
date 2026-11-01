@@ -37,6 +37,11 @@ CONFIGURATION = {
     # Font sizes of the reader screen, scaled down for the 240x240 screen
     "WORD_FONT_SIZE": 42,
     "INFO_FONT_SIZE": 20,
+    # --- Battery ---
+    # How often the battery level is read again (milliseconds)
+    "BATTERY_REFRESH_MS": 30000,
+    # Level shown on Windows (no battery hat there), and on Linux until the first successful read
+    "MOCK_BATTERY_LEVEL": 42,
     "LOGGING": False,
 }
 
@@ -213,6 +218,20 @@ def read_epub_file(epub_file_path: str) -> list[list[str]]:
         return pages
 
 
+def read_battery_level():
+    # Real level (0-100) from the UPS hat on Linux (see battery.py), mock level on Windows.
+    # Returns None if the battery could not be read (hat missing, I2C error...)
+    if not sys.platform.startswith('linux'):
+        return CONFIGURATION["MOCK_BATTERY_LEVEL"]
+    try:
+        import battery  # battery.py, next to this script (needs smbus, only on the Pi)
+        return battery.read_battery_level()
+    except Exception as error:  # ImportError, OSError from the I2C bus...
+        if CONFIGURATION["LOGGING"]:
+            print(f"Battery read failed: {error}")
+        return None
+
+
 def load_state_if_any():
     if CONFIGURATION["LOGGING"]:
         print("=> load prog")
@@ -323,7 +342,9 @@ class GUI():
         # The left button (keyboard "e" / GPIO 23) hides or shows all the progress bars of the reader.
         # Kept while the app runs, so it stays the same when opening another book.
         self.progress_bars_visible = True
-        self.battery_level = 42  # placeholder until the battery is actually read
+        # Shown by the battery bar of the reader screen, read again every BATTERY_REFRESH_MS
+        self.battery_level = CONFIGURATION["MOCK_BATTERY_LEVEL"]
+        self.refresh_battery_level()
 
         self.show_screen(self.create_main_menu)
         self.root.after(20, self.process_pending_actions)
@@ -343,6 +364,17 @@ class GUI():
             if self.is_closed:
                 return  # window was closed by the action (exit)
         self.root.after(20, self.process_pending_actions)
+
+    def refresh_battery_level(self):
+        # Read the battery, update the bar if the reader is displayed, then schedule the next read
+        if self.is_closed:
+            return
+        level = read_battery_level()
+        if level is not None:  # read failed: keep the last known level
+            self.battery_level = level
+            if self.current_screen == self.create_reader:
+                self.update_battery_label()
+        self.root.after(CONFIGURATION["BATTERY_REFRESH_MS"], self.refresh_battery_level)
 
     # --- Theme / screen helpers ---
     @property
