@@ -112,7 +112,6 @@ TRANSLATIONS = {
         "delay": "Delay : {percentage}%",
         "empty_book": "empty book",
         "empty_page": "empty page",
-        "finished_page": "finished page",
         "theme": "Theme : {name}",
         "language": "Language : {name}",
         "theme_dark": "Dark",
@@ -142,7 +141,6 @@ TRANSLATIONS = {
         "delay": "Délai : {percentage}%",
         "empty_book": "livre vide",
         "empty_page": "page vide",
-        "finished_page": "page terminée",
         "theme": "Thème : {name}",
         "language": "Langue : {name}",
         "theme_dark": "Sombre",
@@ -172,7 +170,6 @@ TRANSLATIONS = {
         "delay": "Retardo: {percentage}%",
         "empty_book": "libro vacío",
         "empty_page": "página vacía",
-        "finished_page": "página terminada",
         "theme": "Tema: {name}",
         "language": "Idioma: {name}",
         "theme_dark": "Oscuro",
@@ -860,8 +857,14 @@ class GUI():
                 self.word_update_after_id = self.root.after(
                     int(delay_seconds * 1000), self.update_word
                 )
-            else:
-                self.current_word_label.config(text=self.tr("finished_page"))  # automatically go to the next page ?
+            elif self.current_page_index < len(self.pages_list) - 1:
+                # End of the page: go directly to the first word of the next page
+                self.words_before_current_page += len(self.pages_list[self.current_page_index])
+                self.current_page_index += 1
+                self.current_word_index = 0
+                self.update_book_progression_label()
+                self.update_word()
+            # On the last page of the book, the last word simply stays on screen
 
     def cancel_word_update(self):
         if self.word_update_after_id is not None:
